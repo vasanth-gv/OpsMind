@@ -1,0 +1,4434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OPSMIND — Autonomous DevOps Operations Platform</title>
+    <link rel="stylesheet" href="css/style.css">
+    <meta name="description" content="OPSMIND: Enterprise-grade autonomous DevOps command center for infrastructure monitoring, incident management, and automated remediation.">
+    <style>body{visibility:hidden}</style>
+    <script>
+        // ---- Auth guard: runs before anything renders ----
+        (function () {
+            const token = sessionStorage.getItem('opsmind_token');
+            if (!token) {
+                window.location.replace('login.html');
+                return;
+            }
+            fetch('http://127.0.0.1:8000/api/auth/verify', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            }).then(res => {
+                if (!res.ok) throw new Error('invalid session');
+                document.documentElement.style.visibility = '';
+                document.addEventListener('DOMContentLoaded', () => {
+                    document.body.style.visibility = 'visible';
+                });
+            }).catch(() => {
+                sessionStorage.removeItem('opsmind_token');
+                window.location.replace('login.html');
+            });
+        })();
+    </script>
+
+<style>
+/* OPSMIND AWS COMMAND CENTER */
+.aws-page-shell{max-width:1500px;margin:0 auto;padding:10px 4px 60px}
+.aws-hero{display:flex;justify-content:space-between;align-items:flex-end;gap:28px;padding:20px 4px 28px}
+.aws-eyebrow{font-size:11px;letter-spacing:2px;font-weight:800;color:#62e7ff;display:flex;align-items:center;gap:9px;margin-bottom:10px}
+.aws-live-dot{width:7px;height:7px;border-radius:50%;background:#28e48a;box-shadow:0 0 14px #28e48a;animation:awsPulse 1.7s infinite}
+.aws-title{font-size:clamp(32px,4vw,54px);line-height:1;margin:0;font-weight:800;letter-spacing:-2px}
+.aws-title span{background:linear-gradient(90deg,#00d4ff,#7b2ff7);-webkit-background-clip:text;background-clip:text;color:transparent}
+.aws-subtitle{margin:13px 0 0;color:#7e829c;max-width:680px;font-size:14px}
+.aws-region-pill{min-width:170px;padding:14px 17px;border:1px solid rgba(98,231,255,.18);background:linear-gradient(135deg,rgba(0,212,255,.08),rgba(123,47,247,.08));border-radius:16px;display:flex;align-items:center;gap:12px;box-shadow:0 12px 40px rgba(0,0,0,.22)}
+.aws-region-icon{font-size:27px;color:#00d4ff}
+.aws-region-pill small,.aws-last-check small,.aws-info-kicker{display:block;color:#626781;font-size:9px;letter-spacing:1.5px;font-weight:800}
+.aws-region-pill strong{display:block;margin-top:4px;font-size:13px;color:#e9ebff}
+.aws-status-banner{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:18px 20px;margin-bottom:18px;border:1px solid rgba(255,255,255,.07);border-radius:18px;background:rgba(12,14,27,.72);backdrop-filter:blur(16px);box-shadow:0 15px 50px rgba(0,0,0,.22)}
+.aws-status-main{display:flex;align-items:center;gap:13px}
+.aws-status-orb{width:12px;height:12px;border-radius:50%;background:#7e829c;box-shadow:0 0 18px currentColor}
+.aws-status-orb.healthy{background:#28e48a;color:#28e48a}
+.aws-status-orb.warning{background:#ffb84d;color:#ffb84d}
+.aws-status-orb.error{background:#ff4d73;color:#ff4d73}
+.aws-status-main strong{display:block;font-size:12px;letter-spacing:1px}
+.aws-status-main span:not(.aws-status-orb){display:block;color:#737890;font-size:11px;margin-top:4px}
+.aws-last-check{text-align:right}
+.aws-last-check strong{display:block;margin-top:4px;font-size:11px;color:#cfd3e8}
+.aws-metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:34px}
+.aws-metric-card{position:relative;overflow:hidden;padding:20px;border-radius:18px;border:1px solid rgba(255,255,255,.065);background:linear-gradient(145deg,rgba(22,25,45,.9),rgba(10,12,23,.9));box-shadow:0 18px 45px rgba(0,0,0,.18);transition:transform .25s,border-color .25s}
+.aws-metric-card:before{content:"";position:absolute;width:120px;height:120px;right:-55px;top:-65px;background:radial-gradient(circle,rgba(0,212,255,.14),transparent 68%)}
+.aws-metric-card:hover{transform:translateY(-4px);border-color:rgba(0,212,255,.25)}
+.aws-metric-top{display:flex;justify-content:space-between;color:#6f748e;font-size:9px;font-weight:800;letter-spacing:1.4px}
+.aws-metric-icon{color:#4eafc9;font-size:14px}
+.aws-metric-value{font-size:31px;font-weight:800;margin:16px 0 5px;color:#edf0ff}
+.aws-metric-live{font-size:18px;color:#28e48a;letter-spacing:1px}
+.aws-metric-caption{font-size:10px;color:#5f647c}
+.aws-section-heading{display:flex;align-items:center;justify-content:space-between;margin:8px 0 13px}
+.aws-section-heading h2{margin:0;font-size:18px}
+.aws-section-heading p{margin:5px 0 0;color:#686d86;font-size:11px}
+.aws-refresh-btn{border:1px solid rgba(0,212,255,.2);background:rgba(0,212,255,.07);color:#72eaff;border-radius:10px;padding:9px 13px;cursor:pointer;font-weight:700}
+.aws-refresh-btn:hover{background:rgba(0,212,255,.13)}
+.aws-refresh-btn.loading span{display:inline-block;animation:awsSpin .8s linear infinite}
+.aws-fleet{min-height:180px;border:1px solid rgba(255,255,255,.065);border-radius:18px;background:rgba(10,12,23,.68);overflow:hidden}
+.aws-instance{display:grid;grid-template-columns:1.4fr .7fr .8fr .8fr 1fr auto;gap:16px;align-items:center;padding:17px 19px;border-bottom:1px solid rgba(255,255,255,.055)}
+.aws-instance:last-child{border-bottom:0}
+.aws-instance-head{background:rgba(255,255,255,.025);font-size:9px;color:#60657e;letter-spacing:1.3px;font-weight:800}
+.aws-instance-id{color:#dce1ff;font-weight:700;font-size:12px}
+.aws-instance-type,.aws-instance-state,.aws-instance-cpu,.aws-instance-health{font-size:11px;color:#898ea7}
+.aws-state{display:inline-flex;align-items:center;gap:6px;color:#28e48a;font-weight:700}
+.aws-state-dot{width:6px;height:6px;border-radius:50%;background:#28e48a;box-shadow:0 0 10px #28e48a}
+.aws-state.stopped,.aws-state.unknown{color:#ffb84d}
+.aws-state.stopped .aws-state-dot,.aws-state.unknown .aws-state-dot{background:#ffb84d;box-shadow:0 0 10px #ffb84d}
+.aws-health-chip{padding:5px 8px;border-radius:7px;background:rgba(40,228,138,.08);color:#57edaa;font-size:9px;font-weight:800}
+.aws-health-chip.bad{background:rgba(255,77,115,.08);color:#ff7893}
+.aws-empty-state{height:180px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:7px;color:#8b90a9}
+.aws-empty-state strong{font-size:13px;color:#c9cde0}
+.aws-empty-state span{font-size:10px;color:#5f647c}
+.aws-loader{width:22px;height:22px;border:2px solid rgba(255,255,255,.1);border-top-color:#00d4ff;border-radius:50%;animation:awsSpin .8s linear infinite;margin-bottom:4px}
+.aws-footer-grid{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-top:14px}
+.aws-info-card{padding:18px;border:1px solid rgba(255,255,255,.06);border-radius:16px;background:rgba(14,16,29,.65)}
+.aws-pipeline{display:flex;align-items:center;gap:10px;margin-top:12px;font-size:11px;color:#9da2bd;flex-wrap:wrap}
+.aws-pipeline span,.aws-pipeline b{padding:7px 9px;border-radius:8px;background:rgba(255,255,255,.035)}
+.aws-pipeline b{color:#68e9ff}
+.aws-pipeline i{font-style:normal;color:#50566e}
+.aws-info-card>strong{display:block;font-size:20px;margin-top:8px;color:#e9ebff}
+.aws-info-card>small{display:block;color:#646980;font-size:10px;margin-top:5px}
+@keyframes awsSpin{to{transform:rotate(360deg)}}
+@keyframes awsPulse{50%{opacity:.35;transform:scale(.7)}}
+@media(max-width:900px){.aws-metric-grid{grid-template-columns:repeat(2,1fr)}.aws-instance{grid-template-columns:1fr 1fr}.aws-instance-head{display:none}.aws-footer-grid{grid-template-columns:1fr}.aws-hero{align-items:flex-start;flex-direction:column}.aws-region-pill{width:100%}}
+@media(max-width:560px){.aws-metric-grid{grid-template-columns:1fr}.aws-status-banner{align-items:flex-start;flex-direction:column}.aws-last-check{text-align:left}}
+</style>
+
+</head>
+<body>
+    <!-- Mouse Follow Light -->
+    <div class="mouse-light" id="mouseLight" aria-hidden="true"></div>
+
+    <!-- Global Toast Container -->
+    <div class="toast-container" id="toastContainer" role="alert" aria-live="polite"></div>
+
+    <!-- Notification Panel -->
+    <div class="notification-panel" id="notificationPanel" role="dialog" aria-label="Notifications" aria-hidden="true">
+        <div class="notif-panel-header">
+            <h3>Notifications</h3>
+            <button class="notif-close-btn" id="notifCloseBtn" aria-label="Close notifications">&times;</button>
+        </div>
+        <div class="notif-panel-body" id="notifPanelBody"></div>
+    </div>
+
+    <!-- Modal Overlay -->
+    <div class="modal-overlay" id="modalOverlay" aria-hidden="true">
+        <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+            <div class="modal-header">
+                <h3 id="modalTitle">Details</h3>
+                <button class="modal-close" id="modalClose" aria-label="Close modal">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer" id="modalFooter"></div>
+        </div>
+    </div>
+
+    <!-- App Shell -->
+    <div class="app-shell" id="appShell">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+            <div class="sidebar-header">
+                <div class="logo-container">
+                    <div class="logo-icon" aria-hidden="true">
+                        <svg viewBox="0 0 40 40" width="40" height="40">
+                            <defs>
+                                <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                    <stop offset="0%" style="stop-color:#00d4ff"/>
+                                    <stop offset="100%" style="stop-color:#7b2ff7"/>
+                                </linearGradient>
+                            </defs>
+                            <circle cx="20" cy="20" r="18" fill="none" stroke="url(#logoGrad)" stroke-width="2"/>
+                            <circle cx="20" cy="12" r="3" fill="#00d4ff"/>
+                            <circle cx="12" cy="25" r="3" fill="#7b2ff7"/>
+                            <circle cx="28" cy="25" r="3" fill="#00d4ff"/>
+                            <line x1="20" y1="12" x2="12" y2="25" stroke="url(#logoGrad)" stroke-width="1.5" opacity="0.6"/>
+                            <line x1="20" y1="12" x2="28" y2="25" stroke="url(#logoGrad)" stroke-width="1.5" opacity="0.6"/>
+                            <line x1="12" y1="25" x2="28" y2="25" stroke="url(#logoGrad)" stroke-width="1.5" opacity="0.6"/>
+                        </svg>
+                    </div>
+                    <div class="logo-text">
+                        <span class="logo-name">OPSMIND</span>
+                        <span class="logo-sub">Autonomous DevOps</span>
+                    </div>
+                </div>
+                <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+                    <span></span><span></span><span></span>
+                </button>
+            </div>
+
+            <nav class="sidebar-nav" role="menubar">
+                <ul class="nav-list" id="navList">
+                    <li class="nav-item active" data-page="overview" role="menuitem" tabindex="0">
+                        <div class="nav-indicator"></div>
+                        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+                        <span class="nav-label">Overview</span>
+                    </li>
+                    <li class="nav-item" data-page="infrastructure" role="menuitem" tabindex="0">
+                        <div class="nav-indicator"></div>
+                        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1v-6c0-.55-.45-1-1-1zM7 19c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zM20 3H4c-.55 0-1 .45-1 1v6c0 .55.45 1 1 1h16c.55 0 1-.45 1-1V4c0-.55-.45-1-1-1zM7 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+                        <span class="nav-label">Infrastructure</span>
+                    </li>
+                    <li class="nav-item" data-page="aws" role="menuitem" tabindex="0">
+                        <div class="nav-indicator"></div>
+                        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18.42 14.58c-.42-.42-1.12-.39-1.5.08-.19.23-.43.42-.69.56-.26.14-.55.21-.84.21-.74 0-1.4-.46-1.65-1.16l4.97-2.08c.25-.1.42-.35.42-.63 0-2.34-1.57-4.27-3.6-4.27s-3.6 1.93-3.6 4.27c0 2.6 1.8 4.63 4.13 4.63.87 0 1.69-.3 2.36-.84.47-.38.5-1.08.08-1.5l-.08-.07zM12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/></svg>
+                        <span class="nav-label">AWS</span>
+                    </li>
+                    <li class="nav-item" data-page="kubernetes" role="menuitem" tabindex="0">
+                        <div class="nav-indicator"></div>
+                        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                        <span class="nav-label">Kubernetes</span>
+                    </li>
+                    <li class="nav-item" data-page="docker" role="menuitem" tabindex="0">
+                        <div class="nav-indicator"></div>
+                        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 7h-2V5h-2V3H9v2H7v2H3c0 3.88 2.92 7.08 6.68 7.53.6 1.19 1.58 2.14 2.77 2.73C12.17 18.82 12 20.38 12 22h2c0-1.62.17-3.18.45-4.74 1.19-.59 2.17-1.54 2.77-2.73C21.08 14.08 24 10.88 24 7h-3zm-2-2h2v2h-2V5zm-4-2h2v2h-2V3zm-4 0h2v2h-2V3zM7 7h2v2H7V7zm4 0h2v2h-2V7zm4 0h2v2h-2V7z"/></svg>
+                        <span class="nav-label">Docker</span>
+                    </li>
+                    <li class="nav-item" data-page="jenkins" role="menuitem" tabindex="0">
+                        <div class="nav-indicator"></div>
+                        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                        <span class="nav-label">Jenkins</span>
+                    </li>
+                    <li class="nav-item" data-page="services" role="menuitem" tabindex="0">
+                        <div class="nav-indicator"></div>
+                        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/></svg>
+                        <span class="nav-label">Services</span>
+                    </li>
+                    <li class="nav-item" data-page="incidents" role="menuitem" tabindex="0">
+                        <div class="nav-indicator"></div>
+                        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                        <span class="nav-label">Incidents</span>
+                        <span class="nav-badge" id="incidentBadge">3</span>
+                    </li>
+                    <li class="nav-item" data-page="automation" role="menuitem" tabindex="0">
+                        <div class="nav-indicator"></div>
+                        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+                        <span class="nav-label">Automation</span>
+                    </li>
+                    <li class="nav-item" data-page="intelligence" role="menuitem" tabindex="0">
+                        <div class="nav-indicator"></div>
+                        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                        <span class="nav-label">Intelligence</span>
+                    </li>
+                    <li class="nav-item" data-page="logs" role="menuitem" tabindex="0">
+                        <div class="nav-indicator"></div>
+                        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.17L4 17.17V4h16v12z"/></svg>
+                        <span class="nav-label">Logs</span>
+                    </li>
+                    <li class="nav-item" data-page="settings" role="menuitem" tabindex="0">
+                        <div class="nav-indicator"></div>
+                        <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                        <span class="nav-label">Settings</span>
+                    </li>
+                </ul>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="system-status-mini">
+                    <span class="status-dot healthy" aria-hidden="true"></span>
+                    <span class="nav-label">Systems Online</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent" role="main">
+            <!-- Top Nav -->
+            <header class="top-nav" role="banner">
+                <div class="top-nav-left">
+                    <div class="search-container">
+                        <svg class="search-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                        <input type="search" class="search-input" id="globalSearch" placeholder="Search services, incidents, logs..." aria-label="Global search" autocomplete="off">
+                        <kbd class="search-kbd" aria-hidden="true">⌘K</kbd>
+                    </div>
+                </div>
+
+                <div class="top-nav-center">
+                    <div class="env-selector" role="group" aria-label="Environment selector">
+                        <button class="env-btn active" data-env="production">Production</button>
+                        <button class="env-btn" data-env="staging">Staging</button>
+                        <button class="env-btn" data-env="development">Development</button>
+                    </div>
+                </div>
+
+                <div class="top-nav-right">
+                    <div class="live-indicator" aria-label="Live monitoring active">
+                        <span class="live-dot" aria-hidden="true"></span>
+                        <span class="live-text">Live</span>
+                    </div>
+
+                    <div class="top-nav-divider" aria-hidden="true"></div>
+
+                    <div class="system-uptime" aria-label="System uptime">
+                        <span class="uptime-label">Uptime</span>
+                        <span class="uptime-value" id="uptimeValue">99.97%</span>
+                    </div>
+
+                    <div class="top-nav-divider" aria-hidden="true"></div>
+
+                    <button class="icon-btn notification-btn" id="notificationBtn" aria-label="Notifications">
+                        <svg viewBox="0 0 24 24"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.89 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>
+                        <span class="notification-count" id="notifCount">5</span>
+                    </button>
+
+                    <div class="top-nav-divider" aria-hidden="true"></div>
+
+                    <time class="clock" id="liveClock" aria-label="Current time"></time>
+
+                    <div class="top-nav-divider" aria-hidden="true"></div>
+
+                    <div class="user-profile" id="userProfile" tabindex="0" aria-label="User profile">
+                        <div class="user-avatar">O</div>
+                        <span class="user-name">Ops Admin</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content Container -->
+            <div class="page-content" id="pageContent">
+
+                <!-- OVERVIEW PAGE -->
+                <section class="page active" id="page-overview" aria-label="Overview">
+
+                    <!-- Hero Section -->
+                    <div class="hero-section">
+                        <div class="hero-text">
+                            <h1 class="hero-title">DevOps Command Center</h1>
+                            <p class="hero-subtitle">Monitor, detect, analyze and automate your infrastructure from one place.</p>
+                        </div>
+                        <div class="hero-stats" id="heroStats">
+                            <div class="hero-stat-card glass-card tilt-card" data-stat="health">
+                                <div class="stat-icon-ring healthy">
+                                    <svg viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>
+                                </div>
+                                <div class="stat-info">
+                                    <span class="stat-value counter" data-target="98.7" data-suffix="%">0%</span>
+                                    <span class="stat-label">System Health</span>
+                                </div>
+                            </div>
+                            <div class="hero-stat-card glass-card tilt-card" data-stat="incidents">
+                                <div class="stat-icon-ring warning">
+                                    <svg viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+                                </div>
+                                <div class="stat-info">
+                                    <span class="stat-value counter" data-target="3" data-suffix="">0</span>
+                                    <span class="stat-label">Active Incidents</span>
+                                </div>
+                            </div>
+                            <div class="hero-stat-card glass-card tilt-card" data-stat="services">
+                                <div class="stat-icon-ring info">
+                                    <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/></svg>
+                                </div>
+                                <div class="stat-info">
+                                    <span class="stat-value counter" data-target="24" data-suffix="">0</span>
+                                    <span class="stat-label">Services Monitored</span>
+                                </div>
+                            </div>
+                            <div class="hero-stat-card glass-card tilt-card" data-stat="automation">
+                                <div class="stat-icon-ring success">
+                                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                                </div>
+                                <div class="stat-info">
+                                    <span class="stat-value counter" data-target="142" data-suffix="">0</span>
+                                    <span class="stat-label">Automated Actions</span>
+                                </div>
+                            </div>
+                            <div class="hero-stat-card glass-card tilt-card" data-stat="risk">
+                                <div class="stat-icon-ring low-risk">
+                                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93z"/></svg>
+                                </div>
+                                <div class="stat-info">
+                                    <span class="stat-value counter" data-target="23" data-suffix="/100">0/100</span>
+                                    <span class="stat-label">Risk Score</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 3D Infrastructure Map -->
+                    <div class="section-header">
+                        <h2 class="section-title">Infrastructure Topology</h2>
+                        <span class="section-badge">Real-time</span>
+                    </div>
+                    <div class="infra-map-container glass-panel" id="infraMap">
+                        <canvas id="infraCanvas" aria-label="3D Infrastructure topology visualization"></canvas>
+                        <div class="infra-nodes" id="infraNodes"></div>
+                        <div class="node-tooltip" id="nodeTooltip" aria-hidden="true"></div>
+                    </div>
+
+                    <!-- Live System Health Cards -->
+                    <div class="section-header">
+                        <h2 class="section-title">Live System Health</h2>
+                        <span class="section-badge pulse-badge">Monitoring</span>
+                    </div>
+                    <div class="health-cards-grid" id="healthCardsGrid"></div>
+
+                    <!-- Real-Time Metrics Charts -->
+                    <div class="section-header">
+                        <h2 class="section-title">Real-Time Metrics</h2>
+                        <div class="section-actions">
+                            <select class="metric-range" id="metricRange" aria-label="Time range">
+                                <option value="1h">Last 1 Hour</option>
+                                <option value="6h">Last 6 Hours</option>
+                                <option value="24h" selected>Last 24 Hours</option>
+                                <option value="7d">Last 7 Days</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="charts-grid" id="chartsGrid"></div>
+
+                    <!-- Incident Center & Automation -->
+                    <div class="dual-panel-grid">
+                        <!-- Incidents -->
+                        <div class="panel-section">
+                            <div class="section-header">
+                                <h2 class="section-title">Incident Center</h2>
+                                <button class="section-link" id="viewAllIncidents">View All</button>
+                            </div>
+                            <div class="incident-list glass-panel" id="incidentList"></div>
+                        </div>
+
+                        <!-- Automation -->
+                        <div class="panel-section">
+                            <div class="section-header">
+                                <h2 class="section-title">Automation Center</h2>
+                                <div class="auto-heal-toggle">
+                                    <span class="toggle-label">Auto-Healing</span>
+                                    <label class="toggle-switch" aria-label="Toggle auto-healing">
+                                        <input type="checkbox" id="autoHealToggle" checked>
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="automation-panel glass-panel" id="automationPanel"></div>
+                        </div>
+                    </div>
+
+                    <!-- Intelligence Panel -->
+                    <div class="section-header">
+                        <h2 class="section-title">Ops Intelligence</h2>
+                        <span class="section-badge ai-badge">Prediction Engine</span>
+                    </div>
+                    <div class="intelligence-panel" id="intelligencePanel"></div>
+
+                    <!-- Service Health Table -->
+                    <div class="section-header">
+                        <h2 class="section-title">Service Health</h2>
+                        <div class="section-actions">
+                            <input type="search" class="table-search" id="serviceSearch" placeholder="Filter services..." aria-label="Filter services">
+                        </div>
+                    </div>
+                    <div class="table-container glass-panel">
+                        <table class="service-table" id="serviceTable" aria-label="Service health details">
+                            <thead>
+                                <tr>
+                                    <th data-sort="service" tabindex="0" role="columnheader" aria-sort="none">Service <span class="sort-icon">↕</span></th>
+                                    <th data-sort="environment" tabindex="0" role="columnheader" aria-sort="none">Environment <span class="sort-icon">↕</span></th>
+                                    <th data-sort="status" tabindex="0" role="columnheader" aria-sort="none">Status <span class="sort-icon">↕</span></th>
+                                    <th data-sort="cpu" tabindex="0" role="columnheader" aria-sort="none">CPU <span class="sort-icon">↕</span></th>
+                                    <th data-sort="memory" tabindex="0" role="columnheader" aria-sort="none">Memory <span class="sort-icon">↕</span></th>
+                                    <th data-sort="latency" tabindex="0" role="columnheader" aria-sort="none">Latency <span class="sort-icon">↕</span></th>
+                                    <th data-sort="lastDeploy" tabindex="0" role="columnheader" aria-sort="none">Last Deploy <span class="sort-icon">↕</span></th>
+                                    <th data-sort="risk" tabindex="0" role="columnheader" aria-sort="none">Risk <span class="sort-icon">↕</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="serviceTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- Log Stream -->
+                    <div class="section-header">
+                        <h2 class="section-title">Live Log Stream</h2>
+                        <div class="section-actions">
+                            <select class="log-filter" id="logLevelFilter" aria-label="Log level filter">
+                                <option value="all">All Levels</option>
+                                <option value="INFO">Info</option>
+                                <option value="WARN">Warning</option>
+                                <option value="ERROR">Error</option>
+                            </select>
+                            <button class="btn-sm" id="logPauseBtn">Pause</button>
+                        </div>
+                    </div>
+                    <div class="log-stream glass-panel" id="logStream" role="log" aria-live="polite" aria-label="Live log stream"></div>
+
+                </section>
+
+                <!-- Placeholder pages for other nav items -->
+                <section class="page" id="page-infrastructure" aria-label="Infrastructure">
+                    <div class="section-header">
+                        <h2 class="section-title">Infrastructure Topology</h2>
+                        <span class="section-badge pulse-badge">Illustrative Map</span>
+                    </div>
+                    <div class="infra-map-container glass-panel" id="infraMapPage" style="height:340px;position:relative;margin-bottom:24px">
+                        <canvas id="infraCanvasPage" aria-label="Infrastructure topology visualization"></canvas>
+                        <div class="infra-nodes" id="infraNodesPage"></div>
+                    </div>
+
+                    <div class="section-header">
+                        <h2 class="section-title">Real Infrastructure Components</h2>
+                        <span class="section-badge">From AWS / Docker / Kubernetes</span>
+                    </div>
+                    <div class="table-container glass-panel">
+                        <table class="service-table" id="infraTable">
+                            <thead>
+                                <tr>
+                                    <th>Node</th><th>Type</th><th>Status</th><th>Health</th>
+                                    <th>Detail</th><th>Last Checked</th>
+                                </tr>
+                            </thead>
+                            <tbody id="infraTableBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+                
+<section class="page" id="page-aws" aria-label="AWS">
+    <div class="aws-page-shell">
+
+        <div class="aws-hero">
+            <div>
+                <div class="aws-eyebrow">
+                    <span class="aws-live-dot"></span>
+                    LIVE AWS OBSERVABILITY
+                </div>
+                <h1 class="aws-title">AWS <span>Command Center</span></h1>
+                <p class="aws-subtitle">
+                    Real-time infrastructure visibility powered by your FastAPI monitoring engine.
+                </p>
+            </div>
+
+            <div class="aws-region-pill">
+                <span class="aws-region-icon">⌁</span>
+                <div>
+                    <small>REGION</small>
+                    <strong id="awsRegion">ap-south-1</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="aws-status-banner" id="awsStatusBanner">
+            <div class="aws-status-main">
+                <span class="aws-status-orb" id="awsStatusOrb"></span>
+                <div>
+                    <strong id="awsOverallHealth">CONNECTING</strong>
+                    <span id="awsStatusText">Fetching live AWS infrastructure data...</span>
+                </div>
+            </div>
+            <div class="aws-last-check">
+                <small>LAST CHECK</small>
+                <strong id="awsCheckedAt">--</strong>
+            </div>
+        </div>
+
+        <div class="aws-metric-grid">
+            <div class="aws-metric-card">
+                <div class="aws-metric-top">
+                    <span class="aws-metric-label">EC2 INSTANCES</span>
+                    <span class="aws-metric-icon">▣</span>
+                </div>
+                <div class="aws-metric-value" id="awsInstanceCount">--</div>
+                <div class="aws-metric-caption">Detected in selected region</div>
+            </div>
+
+            <div class="aws-metric-card">
+                <div class="aws-metric-top">
+                    <span class="aws-metric-label">RUNNING</span>
+                    <span class="aws-metric-icon">●</span>
+                </div>
+                <div class="aws-metric-value" id="awsRunningCount">--</div>
+                <div class="aws-metric-caption">Healthy compute nodes</div>
+            </div>
+
+            <div class="aws-metric-card">
+                <div class="aws-metric-top">
+                    <span class="aws-metric-label">HEALTHY</span>
+                    <span class="aws-metric-icon">✓</span>
+                </div>
+                <div class="aws-metric-value" id="awsHealthyCount">--</div>
+                <div class="aws-metric-caption">Instances passing checks</div>
+            </div>
+
+            <div class="aws-metric-card">
+                <div class="aws-metric-top">
+                    <span class="aws-metric-label">MONITORING</span>
+                    <span class="aws-metric-icon">◉</span>
+                </div>
+                <div class="aws-metric-value aws-metric-live">ACTIVE</div>
+                <div class="aws-metric-caption">FastAPI + Boto3 engine</div>
+            </div>
+        </div>
+
+        <div class="aws-section-heading">
+            <div>
+                <h2>Compute Fleet</h2>
+                <p>Live EC2 state, CPU telemetry and application health.</p>
+            </div>
+            <button class="aws-refresh-btn" id="awsRefreshBtn">
+                <span>↻</span> Refresh
+            </button>
+        </div>
+
+        <div class="aws-fleet" id="awsFleet">
+            <div class="aws-empty-state">
+                <div class="aws-loader"></div>
+                <strong>Loading infrastructure...</strong>
+                <span>Connecting to OpsMind backend</span>
+            </div>
+        </div>
+
+        <div class="aws-footer-grid">
+            <div class="aws-info-card">
+                <span class="aws-info-kicker">OBSERVABILITY PIPELINE</span>
+                <div class="aws-pipeline">
+                    <span>EC2</span><i>→</i><span>CloudWatch</span><i>→</i><span>FastAPI</span><i>→</i><b>OPSMIND</b>
+                </div>
+            </div>
+
+            <div class="aws-info-card">
+                <span class="aws-info-kicker">AUTO REFRESH</span>
+                <strong>30 seconds</strong>
+                <small>Dashboard continuously checks the AWS monitoring API.</small>
+            </div>
+        </div>
+    </div>
+</section>
+
+              <!-- =========================================================
+     KUBERNETES COMMAND CENTER
+========================================================= -->
+
+<section class="page" id="page-kubernetes" aria-label="Kubernetes">
+
+<style>
+
+.k8s-shell{
+    max-width:1500px;
+    margin:0 auto;
+    padding:10px 4px 60px;
+}
+
+.k8s-hero{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:25px;
+    padding:20px 4px 28px;
+}
+
+.k8s-eyebrow{
+    font-size:11px;
+    letter-spacing:2px;
+    font-weight:800;
+    color:#62e7ff;
+    margin-bottom:10px;
+}
+
+.k8s-live-dot{
+    display:inline-block;
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background:#28e48a;
+    box-shadow:0 0 14px #28e48a;
+    margin-right:8px;
+    animation:k8sPulse 1.7s infinite;
+}
+
+.k8s-title{
+    font-size:clamp(32px,4vw,54px);
+    line-height:1;
+    margin:0;
+    font-weight:800;
+    letter-spacing:-2px;
+}
+
+.k8s-title span{
+    background:linear-gradient(90deg,#00d4ff,#7b2ff7);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+}
+
+.k8s-subtitle{
+    margin:13px 0 0;
+    color:#7e829c;
+    max-width:680px;
+    font-size:14px;
+}
+
+.k8s-status{
+    min-width:180px;
+    padding:15px 18px;
+    border:1px solid rgba(98,231,255,.18);
+    background:linear-gradient(
+        135deg,
+        rgba(0,212,255,.08),
+        rgba(123,47,247,.08)
+    );
+    border-radius:16px;
+}
+
+.k8s-status small{
+    display:block;
+    color:#626781;
+    font-size:9px;
+    letter-spacing:1.5px;
+    font-weight:800;
+}
+
+.k8s-status strong{
+    display:block;
+    margin-top:5px;
+    color:#28e48a;
+    font-size:14px;
+}
+
+.k8s-banner{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:20px;
+    padding:18px 20px;
+    margin-bottom:18px;
+    border:1px solid rgba(255,255,255,.07);
+    border-radius:18px;
+    background:rgba(12,14,27,.72);
+}
+
+.k8s-banner-left{
+    display:flex;
+    align-items:center;
+    gap:13px;
+}
+
+.k8s-orb{
+    width:12px;
+    height:12px;
+    border-radius:50%;
+    background:#7e829c;
+}
+
+.k8s-orb.online{
+    background:#28e48a;
+    box-shadow:0 0 18px #28e48a;
+}
+
+.k8s-orb.offline{
+    background:#ff4d73;
+    box-shadow:0 0 18px #ff4d73;
+}
+
+.k8s-banner strong{
+    display:block;
+    font-size:12px;
+    letter-spacing:1px;
+}
+
+.k8s-banner span{
+    display:block;
+    color:#737890;
+    font-size:11px;
+    margin-top:4px;
+}
+
+.k8s-last-check{
+    text-align:right;
+}
+
+.k8s-last-check small{
+    display:block;
+    color:#626781;
+    font-size:9px;
+    letter-spacing:1.5px;
+}
+
+.k8s-last-check strong{
+    display:block;
+    margin-top:4px;
+    color:#cfd3e8;
+}
+
+.k8s-metrics{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:14px;
+    margin-bottom:34px;
+}
+
+.k8s-card{
+    padding:20px;
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,.065);
+    background:linear-gradient(
+        145deg,
+        rgba(22,25,45,.9),
+        rgba(10,12,23,.9)
+    );
+    box-shadow:0 18px 45px rgba(0,0,0,.18);
+}
+
+.k8s-card-label{
+    color:#6f748e;
+    font-size:9px;
+    font-weight:800;
+    letter-spacing:1.4px;
+}
+
+.k8s-card-value{
+    font-size:31px;
+    font-weight:800;
+    margin:16px 0 5px;
+    color:#edf0ff;
+}
+
+.k8s-card-caption{
+    font-size:10px;
+    color:#5f647c;
+}
+
+.k8s-card.success .k8s-card-value{
+    color:#28e48a;
+}
+
+.k8s-card.failed .k8s-card-value{
+    color:#ff4d73;
+}
+
+.k8s-section-heading{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin:8px 0 13px;
+}
+
+.k8s-section-heading h2{
+    margin:0;
+    font-size:18px;
+}
+
+.k8s-section-heading p{
+    margin:5px 0 0;
+    color:#686d86;
+    font-size:11px;
+}
+
+.k8s-refresh{
+    border:1px solid rgba(0,212,255,.2);
+    background:rgba(0,212,255,.07);
+    color:#72eaff;
+    border-radius:10px;
+    padding:9px 13px;
+    cursor:pointer;
+    font-weight:700;
+}
+
+.k8s-refresh:hover{
+    background:rgba(0,212,255,.13);
+}
+
+.k8s-refresh.loading span{
+    display:inline-block;
+    animation:k8sSpin .8s linear infinite;
+}
+
+.k8s-table{
+    border:1px solid rgba(255,255,255,.065);
+    border-radius:18px;
+    background:rgba(10,12,23,.68);
+    overflow:hidden;
+}
+
+.k8s-row{
+    display:grid;
+    grid-template-columns:1.5fr 1fr .8fr 1fr;
+    gap:16px;
+    align-items:center;
+    padding:16px 19px;
+    border-bottom:1px solid rgba(255,255,255,.055);
+}
+
+.k8s-row:last-child{
+    border-bottom:0;
+}
+
+.k8s-head{
+    background:rgba(255,255,255,.025);
+    color:#60657e;
+    font-size:9px;
+    letter-spacing:1.3px;
+    font-weight:800;
+}
+
+.k8s-name{
+    color:#dce1ff;
+    font-weight:700;
+    font-size:12px;
+}
+
+.k8s-secondary{
+    color:#686d86;
+    font-size:10px;
+}
+
+.k8s-ready{
+    color:#28e48a;
+    font-size:11px;
+    font-weight:800;
+}
+
+.k8s-notready{
+    color:#ff4d73;
+    font-size:11px;
+    font-weight:800;
+}
+
+.k8s-pods{
+    margin-top:28px;
+}
+
+.k8s-empty{
+    min-height:180px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    gap:7px;
+    color:#8b90a9;
+}
+
+.k8s-empty strong{
+    font-size:13px;
+    color:#c9cde0;
+}
+
+.k8s-empty span{
+    font-size:10px;
+    color:#5f647c;
+}
+
+.k8s-footer{
+    display:grid;
+    grid-template-columns:2fr 1fr;
+    gap:14px;
+    margin-top:14px;
+}
+
+.k8s-info{
+    padding:18px;
+    border:1px solid rgba(255,255,255,.06);
+    border-radius:16px;
+    background:rgba(14,16,29,.65);
+}
+
+.k8s-info-kicker{
+    color:#646980;
+    font-size:9px;
+    letter-spacing:1.5px;
+    font-weight:800;
+}
+
+.k8s-flow{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:14px;
+    font-size:11px;
+    color:#9da2bd;
+}
+
+.k8s-flow span,
+.k8s-flow b{
+    padding:7px 9px;
+    border-radius:8px;
+    background:rgba(255,255,255,.035);
+}
+
+.k8s-flow b{
+    color:#68e9ff;
+}
+
+.k8s-flow i{
+    font-style:normal;
+    color:#50566e;
+}
+
+.k8s-info strong{
+    display:block;
+    margin-top:8px;
+    font-size:20px;
+    color:#e9ebff;
+}
+
+.k8s-info small{
+    display:block;
+    color:#646980;
+    font-size:10px;
+    margin-top:5px;
+}
+
+@keyframes k8sSpin{
+    to{transform:rotate(360deg)}
+}
+
+@keyframes k8sPulse{
+    50%{
+        opacity:.35;
+        transform:scale(.7);
+    }
+}
+
+@media(max-width:900px){
+
+    .k8s-metrics{
+        grid-template-columns:repeat(2,1fr);
+    }
+
+    .k8s-row{
+        grid-template-columns:1fr 1fr;
+    }
+
+    .k8s-head{
+        display:none;
+    }
+
+    .k8s-footer{
+        grid-template-columns:1fr;
+    }
+
+    .k8s-hero{
+        flex-direction:column;
+        align-items:flex-start;
+    }
+
+    .k8s-status{
+        width:100%;
+    }
+}
+
+@media(max-width:560px){
+
+    .k8s-metrics{
+        grid-template-columns:1fr;
+    }
+
+    .k8s-banner{
+        flex-direction:column;
+        align-items:flex-start;
+    }
+
+    .k8s-last-check{
+        text-align:left;
+    }
+}
+
+</style>
+
+
+<div class="k8s-shell">
+
+    <!-- HERO -->
+
+    <div class="k8s-hero">
+
+        <div>
+
+            <div class="k8s-eyebrow">
+                <span class="k8s-live-dot"></span>
+                LIVE KUBERNETES OBSERVABILITY
+            </div>
+
+            <h1 class="k8s-title">
+                Kubernetes <span>Command Center</span>
+            </h1>
+
+            <p class="k8s-subtitle">
+                Real-time Kubernetes cluster, node and pod visibility powered by your FastAPI monitoring engine.
+            </p>
+
+        </div>
+
+        <div class="k8s-status">
+
+            <small>KUBERNETES CLUSTER</small>
+
+            <strong id="k8sServerStatus">
+                CONNECTING
+            </strong>
+
+        </div>
+
+    </div>
+
+
+    <!-- STATUS -->
+
+    <div class="k8s-banner">
+
+        <div class="k8s-banner-left">
+
+            <span
+                class="k8s-orb"
+                id="k8sStatusOrb">
+            </span>
+
+            <div>
+
+                <strong id="k8sOverall">
+                    CONNECTING
+                </strong>
+
+                <span id="k8sStatusText">
+                    Fetching Kubernetes cluster data...
+                </span>
+
+            </div>
+
+        </div>
+
+        <div class="k8s-last-check">
+
+            <small>LAST CHECK</small>
+
+            <strong id="k8sCheckedAt">
+                --
+            </strong>
+
+        </div>
+
+    </div>
+
+
+    <!-- METRICS -->
+
+    <div class="k8s-metrics">
+
+        <div class="k8s-card">
+
+            <div class="k8s-card-label">
+                NODES
+            </div>
+
+            <div
+                class="k8s-card-value"
+                id="k8sNodeCount">
+                --
+            </div>
+
+            <div class="k8s-card-caption">
+                Kubernetes nodes detected
+            </div>
+
+        </div>
+
+
+        <div class="k8s-card">
+
+            <div class="k8s-card-label">
+                TOTAL PODS
+            </div>
+
+            <div
+                class="k8s-card-value"
+                id="k8sPodCount">
+                --
+            </div>
+
+            <div class="k8s-card-caption">
+                Pods across all namespaces
+            </div>
+
+        </div>
+
+
+        <div class="k8s-card success">
+
+            <div class="k8s-card-label">
+                RUNNING
+            </div>
+
+            <div
+                class="k8s-card-value"
+                id="k8sRunningCount">
+                --
+            </div>
+
+            <div class="k8s-card-caption">
+                Active Kubernetes pods
+            </div>
+
+        </div>
+
+
+        <div class="k8s-card failed">
+
+            <div class="k8s-card-label">
+                NOT RUNNING
+            </div>
+
+            <div
+                class="k8s-card-value"
+                id="k8sStoppedCount">
+                --
+            </div>
+
+            <div class="k8s-card-caption">
+                Pending / failed / completed pods
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- NODES -->
+
+    <div class="k8s-section-heading">
+
+        <div>
+
+            <h2>
+                Kubernetes Nodes
+            </h2>
+
+            <p>
+                Live cluster node health and runtime version.
+            </p>
+
+        </div>
+
+        <button
+            class="k8s-refresh"
+            id="k8sRefreshBtn">
+
+            <span>↻</span>
+            Refresh
+
+        </button>
+
+    </div>
+
+
+    <div
+        class="k8s-table"
+        id="k8sNodes">
+
+        <div class="k8s-empty">
+
+            <strong>
+                Loading Kubernetes nodes...
+            </strong>
+
+            <span>
+                Connecting to OpsMind backend
+            </span>
+
+        </div>
+
+    </div>
+
+
+    <!-- PODS -->
+
+    <div class="k8s-pods">
+
+        <div class="k8s-section-heading">
+
+            <div>
+
+                <h2>
+                    Kubernetes Pods
+                </h2>
+
+                <p>
+                    Live pod visibility across all namespaces.
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div
+            class="k8s-table"
+            id="k8sPods">
+
+            <div class="k8s-empty">
+
+                <strong>
+                    Loading Kubernetes pods...
+                </strong>
+
+                <span>
+                    Fetching pod runtime information
+                </span>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- FOOTER -->
+
+    <div class="k8s-footer">
+
+        <div class="k8s-info">
+
+            <div class="k8s-info-kicker">
+                KUBERNETES RUNTIME
+            </div>
+
+            <div class="k8s-flow">
+
+                <span>Cluster</span>
+                <i>→</i>
+
+                <span>Nodes</span>
+                <i>→</i>
+
+                <span>Pods</span>
+                <i>→</i>
+
+                <b>Workloads</b>
+
+            </div>
+
+        </div>
+
+
+        <div class="k8s-info">
+
+            <div class="k8s-info-kicker">
+                AUTO REFRESH
+            </div>
+
+            <strong>
+                30 seconds
+            </strong>
+
+            <small>
+                Dashboard continuously checks Kubernetes API.
+            </small>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+(function(){
+
+    "use strict";
+
+    const K8S_API =
+        "http://127.0.0.1:8000/api/kubernetes";
+
+    let k8sTimer = null;
+
+
+    function el(id){
+        return document.getElementById(id);
+    }
+
+
+    function formatTime(value){
+
+        if(!value){
+            return "--";
+        }
+
+        const d = new Date(value);
+
+        if(Number.isNaN(d.getTime())){
+            return value;
+        }
+
+        return d.toLocaleTimeString(
+            [],
+            {
+                hour:"2-digit",
+                minute:"2-digit",
+                second:"2-digit"
+            }
+        );
+
+    }
+
+
+    function setStatus(type,title,message){
+
+        const orb = el("k8sStatusOrb");
+        const overall = el("k8sOverall");
+        const text = el("k8sStatusText");
+        const server = el("k8sServerStatus");
+
+        if(!orb){
+            return;
+        }
+
+        orb.className =
+            "k8s-orb " + type;
+
+        overall.textContent = title;
+        text.textContent = message;
+        server.textContent = title;
+
+    }
+
+
+    function renderNodes(nodes){
+
+        const container = el("k8sNodes");
+
+        if(!container){
+            return;
+        }
+
+        if(!nodes.length){
+
+            container.innerHTML = `
+                <div class="k8s-empty">
+                    <strong>No Kubernetes nodes detected</strong>
+                    <span>Cluster returned no node information.</span>
+                </div>
+            `;
+
+            return;
+        }
+
+
+        container.innerHTML = `
+
+            <div class="k8s-row k8s-head">
+
+                <span>NODE</span>
+                <span>ROLE</span>
+                <span>STATUS</span>
+                <span>VERSION</span>
+
+            </div>
+
+            ${nodes.map(node => {
+
+                const ready =
+                    String(node.status)
+                    .toLowerCase() === "ready";
+
+                return `
+
+                    <div class="k8s-row">
+
+                        <div class="k8s-name">
+                            ${node.name || "Unknown"}
+                        </div>
+
+                        <div class="k8s-secondary">
+                            ${node.role || "worker"}
+                        </div>
+
+                        <div class="${
+                            ready
+                            ? "k8s-ready"
+                            : "k8s-notready"
+                        }">
+                            ${node.status || "Unknown"}
+                        </div>
+
+                        <div class="k8s-secondary">
+                            ${node.version || "--"}
+                        </div>
+
+                    </div>
+
+                `;
+
+            }).join("")}
+
+        `;
+
+    }
+
+
+    function renderPods(pods){
+
+        const container = el("k8sPods");
+
+        if(!container){
+            return;
+        }
+
+        if(!pods.length){
+
+            container.innerHTML = `
+                <div class="k8s-empty">
+                    <strong>No Kubernetes pods detected</strong>
+                    <span>Cluster returned no pod information.</span>
+                </div>
+            `;
+
+            return;
+        }
+
+
+        container.innerHTML = `
+
+            <div class="k8s-row k8s-head">
+
+                <span>POD</span>
+                <span>NAMESPACE</span>
+                <span>STATUS</span>
+                <span>NODE</span>
+
+            </div>
+
+            ${pods.map(pod => {
+
+                const running =
+                    String(pod.status)
+                    .toLowerCase() === "running";
+
+                return `
+
+                    <div class="k8s-row">
+
+                        <div class="k8s-name">
+                            ${pod.name || "Unknown"}
+                        </div>
+
+                        <div class="k8s-secondary">
+                            ${pod.namespace || "--"}
+                        </div>
+
+                        <div class="${
+                            running
+                            ? "k8s-ready"
+                            : "k8s-notready"
+                        }">
+                            ${pod.status || "Unknown"}
+                        </div>
+
+                        <div class="k8s-secondary">
+                            ${pod.node || "--"}
+                        </div>
+
+                    </div>
+
+                `;
+
+            }).join("")}
+
+        `;
+
+    }
+
+
+    async function loadKubernetes(){
+
+        const btn = el("k8sRefreshBtn");
+
+        if(btn){
+            btn.classList.add("loading");
+        }
+
+
+        try{
+
+            setStatus(
+                "",
+                "CONNECTING",
+                "Fetching Kubernetes cluster data..."
+            );
+
+
+            const response =
+                await fetch(
+                    K8S_API,
+                    {
+                        cache:"no-store"
+                    }
+                );
+
+
+            if(!response.ok){
+
+                throw new Error(
+                    "API returned HTTP " +
+                    response.status
+                );
+
+            }
+
+
+            const data =
+                await response.json();
+
+
+            const nodes =
+                Array.isArray(data.nodes)
+                ? data.nodes
+                : [];
+
+
+            const pods =
+                Array.isArray(data.pods)
+                ? data.pods
+                : [];
+
+
+            el("k8sNodeCount").textContent =
+                data.node_count ?? nodes.length;
+
+
+            el("k8sPodCount").textContent =
+                data.pod_count ?? pods.length;
+
+
+            el("k8sRunningCount").textContent =
+                data.running_pods ?? 0;
+
+
+            el("k8sStoppedCount").textContent =
+                data.stopped_pods ?? 0;
+
+
+            el("k8sCheckedAt").textContent =
+                formatTime(data.checked_at);
+
+
+            renderNodes(nodes);
+            renderPods(pods);
+
+
+            if(
+                data.status === "success" &&
+                data.kubernetes === "online"
+            ){
+
+                setStatus(
+                    "online",
+                    "ONLINE",
+                    "Kubernetes monitoring engine is operating normally."
+                );
+
+            }else{
+
+                setStatus(
+                    "offline",
+                    "OFFLINE",
+                    "Kubernetes backend returned an error."
+                );
+
+            }
+
+
+        }catch(error){
+
+            console.error(
+                "OPSMIND Kubernetes API error:",
+                error
+            );
+
+
+            setStatus(
+                "offline",
+                "OFFLINE",
+                "Cannot reach FastAPI at 127.0.0.1:8000."
+            );
+
+
+            el("k8sNodes").innerHTML = `
+
+                <div class="k8s-empty">
+
+                    <strong>
+                        Kubernetes backend unavailable
+                    </strong>
+
+                    <span>
+                        Start FastAPI with:
+                        python -m uvicorn app:app --reload
+                    </span>
+
+                </div>
+
+            `;
+
+
+            el("k8sPods").innerHTML = `
+
+                <div class="k8s-empty">
+
+                    <strong>
+                        Kubernetes data unavailable
+                    </strong>
+
+                    <span>
+                        Check FastAPI and Kubernetes cluster status.
+                    </span>
+
+                </div>
+
+            `;
+
+
+            el("k8sCheckedAt").textContent =
+                "--";
+
+        }
+
+
+        finally{
+
+            if(btn){
+                btn.classList.remove("loading");
+            }
+
+        }
+
+    }
+
+
+    function initKubernetes(){
+
+        loadKubernetes();
+
+
+        const btn =
+            el("k8sRefreshBtn");
+
+
+        if(btn){
+
+            btn.addEventListener(
+                "click",
+                loadKubernetes
+            );
+
+        }
+
+
+        if(k8sTimer){
+            clearInterval(k8sTimer);
+        }
+
+
+        k8sTimer =
+            setInterval(
+                loadKubernetes,
+                30000
+            );
+
+    }
+
+
+    if(
+        document.readyState === "loading"
+    ){
+
+        document.addEventListener(
+            "DOMContentLoaded",
+            initKubernetes
+        );
+
+    }else{
+
+        initKubernetes();
+
+    }
+
+})();
+
+</script>
+
+</section>
+               
+               
+                <!-- =========================================================
+     DOCKER COMMAND CENTER
+========================================================= -->
+
+<section class="page" id="page-docker" aria-label="Docker">
+
+<style>
+
+/* =========================================================
+   DOCKER COMMAND CENTER
+========================================================= */
+
+.docker-shell{
+    max-width:1500px;
+    margin:0 auto;
+    padding:10px 4px 60px;
+}
+
+
+/* =========================================================
+   HERO
+========================================================= */
+
+.docker-hero{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:25px;
+    padding:20px 4px 28px;
+}
+
+.docker-eyebrow{
+    font-size:11px;
+    letter-spacing:2px;
+    font-weight:800;
+    color:#62e7ff;
+    margin-bottom:10px;
+}
+
+.docker-live-dot{
+    display:inline-block;
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background:#28e48a;
+    box-shadow:0 0 14px #28e48a;
+    margin-right:8px;
+    animation:dockerPulse 1.7s infinite;
+}
+
+.docker-title{
+    font-size:clamp(32px,4vw,54px);
+    line-height:1;
+    margin:0;
+    font-weight:800;
+    letter-spacing:-2px;
+}
+
+.docker-title span{
+    background:linear-gradient(90deg,#00d4ff,#7b2ff7);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+}
+
+.docker-subtitle{
+    margin:13px 0 0;
+    color:#7e829c;
+    max-width:680px;
+    font-size:14px;
+}
+
+.docker-status{
+    min-width:180px;
+    padding:15px 18px;
+    border:1px solid rgba(98,231,255,.18);
+    background:linear-gradient(
+        135deg,
+        rgba(0,212,255,.08),
+        rgba(123,47,247,.08)
+    );
+    border-radius:16px;
+}
+
+.docker-status small{
+    display:block;
+    color:#626781;
+    font-size:9px;
+    letter-spacing:1.5px;
+    font-weight:800;
+}
+
+.docker-status strong{
+    display:block;
+    margin-top:5px;
+    color:#28e48a;
+    font-size:14px;
+}
+
+
+/* =========================================================
+   STATUS BANNER
+========================================================= */
+
+.docker-banner{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:20px;
+    padding:18px 20px;
+    margin-bottom:18px;
+    border:1px solid rgba(255,255,255,.07);
+    border-radius:18px;
+    background:rgba(12,14,27,.72);
+}
+
+.docker-banner-left{
+    display:flex;
+    align-items:center;
+    gap:13px;
+}
+
+.docker-orb{
+    width:12px;
+    height:12px;
+    border-radius:50%;
+    background:#7e829c;
+}
+
+.docker-orb.online{
+    background:#28e48a;
+    box-shadow:0 0 18px #28e48a;
+}
+
+.docker-orb.offline{
+    background:#ff4d73;
+    box-shadow:0 0 18px #ff4d73;
+}
+
+.docker-banner strong{
+    display:block;
+    font-size:12px;
+    letter-spacing:1px;
+}
+
+.docker-banner span{
+    display:block;
+    color:#737890;
+    font-size:11px;
+    margin-top:4px;
+}
+
+.docker-last-check{
+    text-align:right;
+}
+
+.docker-last-check small{
+    display:block;
+    color:#626781;
+    font-size:9px;
+    letter-spacing:1.5px;
+}
+
+.docker-last-check strong{
+    display:block;
+    margin-top:4px;
+    color:#cfd3e8;
+}
+
+
+/* =========================================================
+   METRICS
+========================================================= */
+
+.docker-metrics{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:14px;
+    margin-bottom:34px;
+}
+
+.docker-card{
+    padding:20px;
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,.065);
+    background:linear-gradient(
+        145deg,
+        rgba(22,25,45,.9),
+        rgba(10,12,23,.9)
+    );
+    box-shadow:0 18px 45px rgba(0,0,0,.18);
+}
+
+.docker-card-label{
+    color:#6f748e;
+    font-size:9px;
+    font-weight:800;
+    letter-spacing:1.4px;
+}
+
+.docker-card-value{
+    font-size:31px;
+    font-weight:800;
+    margin:16px 0 5px;
+    color:#edf0ff;
+}
+
+.docker-card-caption{
+    font-size:10px;
+    color:#5f647c;
+}
+
+.docker-card.running .docker-card-value{
+    color:#28e48a;
+}
+
+.docker-card.stopped .docker-card-value{
+    color:#ffb84d;
+}
+
+
+/* =========================================================
+   SECTION HEADING
+========================================================= */
+
+.docker-section-heading{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin:8px 0 13px;
+}
+
+.docker-section-heading h2{
+    margin:0;
+    font-size:18px;
+}
+
+.docker-section-heading p{
+    margin:5px 0 0;
+    color:#686d86;
+    font-size:11px;
+}
+
+.docker-refresh{
+    border:1px solid rgba(0,212,255,.2);
+    background:rgba(0,212,255,.07);
+    color:#72eaff;
+    border-radius:10px;
+    padding:9px 13px;
+    cursor:pointer;
+    font-weight:700;
+}
+
+.docker-refresh:hover{
+    background:rgba(0,212,255,.13);
+}
+
+.docker-refresh.loading span{
+    display:inline-block;
+    animation:dockerSpin .8s linear infinite;
+}
+
+
+/* =========================================================
+   CONTAINER TABLE
+========================================================= */
+
+.docker-containers{
+    border:1px solid rgba(255,255,255,.065);
+    border-radius:18px;
+    background:rgba(10,12,23,.68);
+    overflow:hidden;
+}
+
+.docker-container{
+    display:grid;
+    grid-template-columns:1.1fr 1.2fr .8fr .9fr;
+    gap:16px;
+    align-items:center;
+    padding:17px 19px;
+    border-bottom:1px solid rgba(255,255,255,.055);
+}
+
+.docker-container:last-child{
+    border-bottom:0;
+}
+
+.docker-container-head{
+    background:rgba(255,255,255,.025);
+    color:#60657e;
+    font-size:9px;
+    letter-spacing:1.3px;
+    font-weight:800;
+}
+
+.docker-container-name{
+    color:#dce1ff;
+    font-weight:700;
+    font-size:12px;
+}
+
+.docker-container-id{
+    color:#686d86;
+    font-size:10px;
+    margin-top:4px;
+}
+
+.docker-container-image{
+    color:#9da2bd;
+    font-size:10px;
+}
+
+.docker-container-status{
+    font-size:11px;
+    font-weight:800;
+}
+
+.docker-running{
+    color:#28e48a;
+}
+
+.docker-stopped{
+    color:#ffb84d;
+}
+
+.docker-created{
+    color:#72eaff;
+}
+
+.docker-unknown{
+    color:#8b90a9;
+}
+
+
+/* =========================================================
+   EMPTY STATE
+========================================================= */
+
+.docker-empty{
+    min-height:180px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    gap:7px;
+    color:#8b90a9;
+}
+
+.docker-empty strong{
+    font-size:13px;
+    color:#c9cde0;
+}
+
+.docker-empty span{
+    font-size:10px;
+    color:#5f647c;
+}
+
+
+/* =========================================================
+   FOOTER
+========================================================= */
+
+.docker-footer{
+    display:grid;
+    grid-template-columns:2fr 1fr;
+    gap:14px;
+    margin-top:14px;
+}
+
+.docker-info{
+    padding:18px;
+    border:1px solid rgba(255,255,255,.06);
+    border-radius:16px;
+    background:rgba(14,16,29,.65);
+}
+
+.docker-info-kicker{
+    color:#646980;
+    font-size:9px;
+    letter-spacing:1.5px;
+    font-weight:800;
+}
+
+.docker-runtime{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:14px;
+    font-size:11px;
+    color:#9da2bd;
+}
+
+.docker-runtime span,
+.docker-runtime b{
+    padding:7px 9px;
+    border-radius:8px;
+    background:rgba(255,255,255,.035);
+}
+
+.docker-runtime b{
+    color:#68e9ff;
+}
+
+.docker-runtime i{
+    font-style:normal;
+    color:#50566e;
+}
+
+.docker-info strong{
+    display:block;
+    margin-top:8px;
+    font-size:20px;
+    color:#e9ebff;
+}
+
+.docker-info small{
+    display:block;
+    color:#646980;
+    font-size:10px;
+    margin-top:5px;
+}
+
+
+/* =========================================================
+   ANIMATIONS
+========================================================= */
+
+@keyframes dockerSpin{
+    to{
+        transform:rotate(360deg);
+    }
+}
+
+@keyframes dockerPulse{
+    50%{
+        opacity:.35;
+        transform:scale(.7);
+    }
+}
+
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media(max-width:900px){
+
+    .docker-metrics{
+        grid-template-columns:repeat(2,1fr);
+    }
+
+    .docker-container{
+        grid-template-columns:1fr 1fr;
+    }
+
+    .docker-container-head{
+        display:none;
+    }
+
+    .docker-footer{
+        grid-template-columns:1fr;
+    }
+
+    .docker-hero{
+        flex-direction:column;
+        align-items:flex-start;
+    }
+
+    .docker-status{
+        width:100%;
+    }
+
+}
+
+@media(max-width:560px){
+
+    .docker-metrics{
+        grid-template-columns:1fr;
+    }
+
+    .docker-banner{
+        flex-direction:column;
+        align-items:flex-start;
+    }
+
+    .docker-last-check{
+        text-align:left;
+    }
+
+    .docker-container{
+        grid-template-columns:1fr;
+        gap:8px;
+    }
+
+}
+
+</style>
+
+
+<div class="docker-shell">
+
+
+    <!-- =====================================================
+         HERO
+    ====================================================== -->
+
+    <div class="docker-hero">
+
+        <div>
+
+            <div class="docker-eyebrow">
+
+                <span class="docker-live-dot"></span>
+
+                LIVE DOCKER OBSERVABILITY
+
+            </div>
+
+
+            <h1 class="docker-title">
+
+                Docker <span>Command Center</span>
+
+            </h1>
+
+
+            <p class="docker-subtitle">
+
+                Real-time Docker container and image visibility powered by your FastAPI monitoring engine.
+
+            </p>
+
+        </div>
+
+
+        <div class="docker-status">
+
+            <small>DOCKER ENGINE</small>
+
+            <strong id="dockerServerStatus">
+                CONNECTING
+            </strong>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- =====================================================
+         STATUS
+    ====================================================== -->
+
+    <div class="docker-banner">
+
+        <div class="docker-banner-left">
+
+            <span
+                class="docker-orb"
+                id="dockerStatusOrb">
+            </span>
+
+
+            <div>
+
+                <strong id="dockerOverall">
+                    CONNECTING
+                </strong>
+
+
+                <span id="dockerStatusText">
+                    Fetching Docker engine data...
+                </span>
+
+            </div>
+
+        </div>
+
+
+        <div class="docker-last-check">
+
+            <small>LAST CHECK</small>
+
+            <strong id="dockerCheckedAt">
+                --
+            </strong>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- =====================================================
+         METRICS
+    ====================================================== -->
+
+    <div class="docker-metrics">
+
+
+        <div class="docker-card">
+
+            <div class="docker-card-label">
+                TOTAL CONTAINERS
+            </div>
+
+
+            <div
+                class="docker-card-value"
+                id="dockerContainerCount">
+                --
+            </div>
+
+
+            <div class="docker-card-caption">
+                Docker containers detected
+            </div>
+
+        </div>
+
+
+
+        <div class="docker-card running">
+
+            <div class="docker-card-label">
+                RUNNING
+            </div>
+
+
+            <div
+                class="docker-card-value"
+                id="dockerRunningCount">
+                --
+            </div>
+
+
+            <div class="docker-card-caption">
+                Active containers
+            </div>
+
+        </div>
+
+
+
+        <div class="docker-card stopped">
+
+            <div class="docker-card-label">
+                STOPPED
+            </div>
+
+
+            <div
+                class="docker-card-value"
+                id="dockerStoppedCount">
+                --
+            </div>
+
+
+            <div class="docker-card-caption">
+                Stopped containers
+            </div>
+
+        </div>
+
+
+
+        <div class="docker-card">
+
+            <div class="docker-card-label">
+                IMAGES
+            </div>
+
+
+            <div
+                class="docker-card-value"
+                id="dockerImageCount">
+                --
+            </div>
+
+
+            <div class="docker-card-caption">
+                Docker images available
+            </div>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- =====================================================
+         CONTAINERS
+    ====================================================== -->
+
+    <div class="docker-section-heading">
+
+        <div>
+
+            <h2>
+                Docker Containers
+            </h2>
+
+            <p>
+                Live container runtime visibility.
+            </p>
+
+        </div>
+
+
+        <button
+            class="docker-refresh"
+            id="dockerRefreshBtn">
+
+            <span>↻</span>
+
+            Refresh
+
+        </button>
+
+    </div>
+
+
+
+    <div
+        class="docker-containers"
+        id="dockerContainers">
+
+
+        <div class="docker-empty">
+
+            <strong>
+                Loading Docker containers...
+            </strong>
+
+            <span>
+                Connecting to OpsMind backend
+            </span>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- =====================================================
+         FOOTER
+    ====================================================== -->
+
+    <div class="docker-footer">
+
+
+        <div class="docker-info">
+
+            <div class="docker-info-kicker">
+                DOCKER RUNTIME
+            </div>
+
+
+            <div class="docker-runtime">
+
+                <span>
+                    Docker Engine
+                </span>
+
+                <i>→</i>
+
+                <span>
+                    Containers
+                </span>
+
+                <i>→</i>
+
+                <span>
+                    Images
+                </span>
+
+                <i>→</i>
+
+                <b>
+                    Runtime
+                </b>
+
+            </div>
+
+        </div>
+
+
+
+        <div class="docker-info">
+
+            <div class="docker-info-kicker">
+                AUTO REFRESH
+            </div>
+
+
+            <strong>
+                30 seconds
+            </strong>
+
+
+            <small>
+                Dashboard continuously checks Docker engine status.
+            </small>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+
+<script>
+
+/* =========================================================
+   OPSMIND — DOCKER LIVE MONITOR
+========================================================= */
+
+(function(){
+
+    "use strict";
+
+
+    const DOCKER_API =
+        "http://127.0.0.1:8000/api/docker";
+
+
+    let dockerTimer = null;
+
+
+
+    /* =====================================================
+       ELEMENT HELPER
+    ====================================================== */
+
+    function el(id){
+
+        return document.getElementById(id);
+
+    }
+
+
+
+    /* =====================================================
+       FORMAT TIME
+    ====================================================== */
+
+    function formatTime(value){
+
+        if(!value){
+
+            return "--";
+
+        }
+
+
+        const d =
+            new Date(value);
+
+
+        if(Number.isNaN(d.getTime())){
+
+            return value;
+
+        }
+
+
+        return d.toLocaleTimeString(
+            [],
+            {
+                hour:"2-digit",
+                minute:"2-digit",
+                second:"2-digit"
+            }
+        );
+
+    }
+
+
+
+    /* =====================================================
+       DOCKER STATUS
+    ====================================================== */
+
+    function setStatus(
+        type,
+        title,
+        message
+    ){
+
+        const orb =
+            el("dockerStatusOrb");
+
+
+        const overall =
+            el("dockerOverall");
+
+
+        const text =
+            el("dockerStatusText");
+
+
+        const server =
+            el("dockerServerStatus");
+
+
+        if(!orb){
+
+            return;
+
+        }
+
+
+        orb.className =
+            "docker-orb " + type;
+
+
+        overall.textContent =
+            title;
+
+
+        text.textContent =
+            message;
+
+
+        server.textContent =
+            title;
+
+    }
+
+
+
+    /* =====================================================
+       CONTAINER STATUS CLASS
+    ====================================================== */
+
+    function getStatusClass(status){
+
+        const value =
+            String(status || "")
+                .toLowerCase();
+
+
+        if(
+            value.includes("up") ||
+            value.includes("running")
+        ){
+
+            return "docker-running";
+
+        }
+
+
+        if(
+            value.includes("exited") ||
+            value.includes("stopped")
+        ){
+
+            return "docker-stopped";
+
+        }
+
+
+        if(
+            value.includes("created")
+        ){
+
+            return "docker-created";
+
+        }
+
+
+        return "docker-unknown";
+
+    }
+
+
+
+    /* =====================================================
+       RENDER CONTAINERS
+    ====================================================== */
+
+    function renderContainers(data){
+
+        const container =
+            el("dockerContainers");
+
+
+        if(!container){
+
+            return;
+
+        }
+
+
+        const containers =
+            Array.isArray(data.containers)
+                ? data.containers
+                : [];
+
+
+        /*
+         * Update metrics
+         */
+
+        el("dockerContainerCount").textContent =
+            data.container_count ?? containers.length;
+
+
+        el("dockerRunningCount").textContent =
+            data.running_containers ?? 0;
+
+
+        el("dockerStoppedCount").textContent =
+            data.stopped_containers ?? 0;
+
+
+        el("dockerImageCount").textContent =
+            data.image_count ?? 0;
+
+
+        el("dockerCheckedAt").textContent =
+            formatTime(data.checked_at);
+
+
+
+        /* =================================================
+           EMPTY
+        ================================================== */
+
+        if(!containers.length){
+
+            container.innerHTML = `
+
+                <div class="docker-empty">
+
+                    <strong>
+                        No Docker containers detected
+                    </strong>
+
+                    <span>
+                        Docker is connected but returned no containers.
+                    </span>
+
+                </div>
+
+            `;
+
+            return;
+
+        }
+
+
+
+        /* =================================================
+           TABLE
+        ================================================== */
+
+        container.innerHTML = `
+
+            <div class="docker-container docker-container-head">
+
+                <span>CONTAINER</span>
+
+                <span>IMAGE</span>
+
+                <span>STATUS</span>
+
+                <span>ID</span>
+
+            </div>
+
+
+            ${containers.map(item => {
+
+                const status =
+                    String(
+                        item.status || "unknown"
+                    );
+
+
+                const statusClass =
+                    getStatusClass(status);
+
+
+                const statusText =
+                    status.toUpperCase();
+
+
+                return `
+
+                    <div class="docker-container">
+
+                        <div>
+
+                            <div class="docker-container-name">
+
+                                ${item.name || "Unknown Container"}
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="docker-container-image">
+
+                            ${item.image || "unknown"}
+
+                        </div>
+
+
+                        <div class="docker-container-status ${statusClass}">
+
+                            ${statusText}
+
+                        </div>
+
+
+                        <div class="docker-container-id">
+
+                            ${item.id || "--"}
+
+                        </div>
+
+                    </div>
+
+                `;
+
+            }).join("")}
+
+        `;
+
+    }
+
+
+
+    /* =====================================================
+       LOAD DOCKER
+    ====================================================== */
+
+    async function loadDocker(){
+
+        const btn =
+            el("dockerRefreshBtn");
+
+
+        if(btn){
+
+            btn.classList.add("loading");
+
+        }
+
+
+        try{
+
+            setStatus(
+                "",
+                "CONNECTING",
+                "Fetching Docker engine data..."
+            );
+
+
+
+            const response =
+                await fetch(
+                    DOCKER_API,
+                    {
+                        cache:"no-store"
+                    }
+                );
+
+
+            if(!response.ok){
+
+                throw new Error(
+                    "API returned HTTP " +
+                    response.status
+                );
+
+            }
+
+
+            const data =
+                await response.json();
+
+
+            /*
+             * Render dashboard
+             */
+
+            renderContainers(data);
+
+
+
+            /* =================================================
+               ONLINE / OFFLINE
+            ================================================== */
+
+            if(
+                data.status === "success" &&
+                data.docker === "online"
+            ){
+
+                setStatus(
+                    "online",
+                    "ONLINE",
+                    "Docker monitoring engine is operating normally."
+                );
+
+            }else{
+
+                setStatus(
+                    "offline",
+                    "OFFLINE",
+                    data.message ||
+                    "Docker backend returned an error."
+                );
+
+            }
+
+
+        }catch(error){
+
+            console.error(
+                "OPSMIND Docker API error:",
+                error
+            );
+
+
+            setStatus(
+                "offline",
+                "OFFLINE",
+                "Cannot reach Docker monitoring API."
+            );
+
+
+            el("dockerContainers").innerHTML = `
+
+                <div class="docker-empty">
+
+                    <strong>
+                        Docker backend unavailable
+                    </strong>
+
+                    <span>
+                        Start FastAPI with:
+                        python -m uvicorn app:app --reload
+                    </span>
+
+                </div>
+
+            `;
+
+
+            el("dockerCheckedAt").textContent =
+                "--";
+
+        }
+
+
+        finally{
+
+            if(btn){
+
+                btn.classList.remove("loading");
+
+            }
+
+        }
+
+    }
+
+
+
+    /* =====================================================
+       INITIALIZE
+    ====================================================== */
+
+    function initDocker(){
+
+        loadDocker();
+
+
+
+        const btn =
+            el("dockerRefreshBtn");
+
+
+        if(btn){
+
+            btn.addEventListener(
+                "click",
+                loadDocker
+            );
+
+        }
+
+
+
+        if(dockerTimer){
+
+            clearInterval(dockerTimer);
+
+        }
+
+
+        dockerTimer =
+            setInterval(
+                loadDocker,
+                30000
+            );
+
+    }
+
+
+
+    /* =====================================================
+       DOM READY
+    ====================================================== */
+
+    if(
+        document.readyState === "loading"
+    ){
+
+        document.addEventListener(
+            "DOMContentLoaded",
+            initDocker
+        );
+
+    }else{
+
+        initDocker();
+
+    }
+
+})();
+
+</script>
+
+</section>
+
+
+                <!-- =========================================================
+      COMMAND CENTER
+========================================================= -->
+
+<section class="page" id="page-jenkins" aria-label="Jenkins">
+
+<style>
+.jenkins-shell{
+    max-width:1500px;
+    margin:0 auto;
+    padding:10px 4px 60px;
+}
+
+.jenkins-hero{
+    display:flex;
+    justify-content:spacJENKINSe-between;
+    align-items:flex-end;
+    gap:25px;
+    padding:20px 4px 28px;
+}
+
+.jenkins-eyebrow{
+    font-size:11px;
+    letter-spacing:2px;
+    font-weight:800;
+    color:#62e7ff;
+    margin-bottom:10px;
+}
+
+.jenkins-live-dot{
+    display:inline-block;
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background:#28e48a;
+    box-shadow:0 0 14px #28e48a;
+    margin-right:8px;
+    animation:jenkinsPulse 1.7s infinite;
+}
+
+.jenkins-title{
+    font-size:clamp(32px,4vw,54px);
+    line-height:1;
+    margin:0;
+    font-weight:800;
+    letter-spacing:-2px;
+}
+
+.jenkins-title span{
+    background:linear-gradient(90deg,#00d4ff,#7b2ff7);
+    -webkit-background-clip:text;
+    background-clip:text;
+    color:transparent;
+}
+
+.jenkins-subtitle{
+    margin:13px 0 0;
+    color:#7e829c;
+    max-width:680px;
+    font-size:14px;
+}
+
+.jenkins-status{
+    min-width:180px;
+    padding:15px 18px;
+    border:1px solid rgba(98,231,255,.18);
+    background:linear-gradient(
+        135deg,
+        rgba(0,212,255,.08),
+        rgba(123,47,247,.08)
+    );
+    border-radius:16px;
+}
+
+.jenkins-status small{
+    display:block;
+    color:#626781;
+    font-size:9px;
+    letter-spacing:1.5px;
+    font-weight:800;
+}
+
+.jenkins-status strong{
+    display:block;
+    margin-top:5px;
+    color:#28e48a;
+    font-size:14px;
+}
+
+.jenkins-banner{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:20px;
+    padding:18px 20px;
+    margin-bottom:18px;
+    border:1px solid rgba(255,255,255,.07);
+    border-radius:18px;
+    background:rgba(12,14,27,.72);
+}
+
+.jenkins-banner-left{
+    display:flex;
+    align-items:center;
+    gap:13px;
+}
+
+.jenkins-orb{
+    width:12px;
+    height:12px;
+    border-radius:50%;
+    background:#7e829c;
+}
+
+.jenkins-orb.online{
+    background:#28e48a;
+    box-shadow:0 0 18px #28e48a;
+}
+
+.jenkins-orb.offline{
+    background:#ff4d73;
+    box-shadow:0 0 18px #ff4d73;
+}
+
+.jenkins-banner strong{
+    display:block;
+    font-size:12px;
+    letter-spacing:1px;
+}
+
+.jenkins-banner span{
+    display:block;
+    color:#737890;
+    font-size:11px;
+    margin-top:4px;
+}
+
+.jenkins-last-check{
+    text-align:right;
+}
+
+.jenkins-last-check small{
+    display:block;
+    color:#626781;
+    font-size:9px;
+    letter-spacing:1.5px;
+}
+
+.jenkins-last-check strong{
+    display:block;
+    margin-top:4px;
+    color:#cfd3e8;
+}
+
+.jenkins-metrics{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:14px;
+    margin-bottom:34px;
+}
+
+.jenkins-card{
+    padding:20px;
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,.065);
+    background:linear-gradient(
+        145deg,
+        rgba(22,25,45,.9),
+        rgba(10,12,23,.9)
+    );
+    box-shadow:0 18px 45px rgba(0,0,0,.18);
+}
+
+.jenkins-card-label{
+    color:#6f748e;
+    font-size:9px;
+    font-weight:800;
+    letter-spacing:1.4px;
+}
+
+.jenkins-card-value{
+    font-size:31px;
+    font-weight:800;
+    margin:16px 0 5px;
+    color:#edf0ff;
+}
+
+.jenkins-card-caption{
+    font-size:10px;
+    color:#5f647c;
+}
+
+.jenkins-card.success .jenkins-card-value{
+    color:#28e48a;
+}
+
+.jenkins-card.failed .jenkins-card-value{
+    color:#ff4d73;
+}
+
+.jenkins-section-heading{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin:8px 0 13px;
+}
+
+.jenkins-section-heading h2{
+    margin:0;
+    font-size:18px;
+}
+
+.jenkins-section-heading p{
+    margin:5px 0 0;
+    color:#686d86;
+    font-size:11px;
+}
+
+.jenkins-refresh{
+    border:1px solid rgba(0,212,255,.2);
+    background:rgba(0,212,255,.07);
+    color:#72eaff;
+    border-radius:10px;
+    padding:9px 13px;
+    cursor:pointer;
+    font-weight:700;
+}
+
+.jenkins-refresh:hover{
+    background:rgba(0,212,255,.13);
+}
+
+.jenkins-refresh.loading span{
+    display:inline-block;
+    animation:jenkinsSpin .8s linear infinite;
+}
+
+.jenkins-jobs{
+    border:1px solid rgba(255,255,255,.065);
+    border-radius:18px;
+    background:rgba(10,12,23,.68);
+    overflow:hidden;
+}
+
+.jenkins-job{
+    display:grid;
+    grid-template-columns:1.6fr 1fr .8fr auto;
+    gap:16px;
+    align-items:center;
+    padding:17px 19px;
+    border-bottom:1px solid rgba(255,255,255,.055);
+}
+
+.jenkins-job:last-child{
+    border-bottom:0;
+}
+
+.jenkins-job-head{
+    background:rgba(255,255,255,.025);
+    color:#60657e;
+    font-size:9px;
+    letter-spacing:1.3px;
+    font-weight:800;
+}
+
+.jenkins-job-name{
+    color:#dce1ff;
+    font-weight:700;
+    font-size:12px;
+}
+
+.jenkins-job-url{
+    color:#686d86;
+    font-size:10px;
+}
+
+.jenkins-job-status{
+    font-size:11px;
+    font-weight:800;
+}
+
+.jenkins-blue{
+    color:#28e48a;
+}
+
+.jenkins-red{
+    color:#ff4d73;
+}
+
+.jenkins-job-btn{
+    border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.04);
+    color:#b9c0dd;
+    padding:6px 10px;
+    border-radius:7px;
+    text-decoration:none;
+    font-size:10px;
+}
+
+.jenkins-empty{
+    min-height:180px;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:center;
+    gap:7px;
+    color:#8b90a9;
+}
+
+.jenkins-empty strong{
+    font-size:13px;
+    color:#c9cde0;
+}
+
+.jenkins-empty span{
+    font-size:10px;
+    color:#5f647c;
+}
+
+.jenkins-pipeline{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:14px;
+    font-size:11px;
+    color:#9da2bd;
+}
+
+.jenkins-pipeline span,
+.jenkins-pipeline b{
+    padding:7px 9px;
+    border-radius:8px;
+    background:rgba(255,255,255,.035);
+}
+
+.jenkins-pipeline b{
+    color:#68e9ff;
+}
+
+.jenkins-pipeline i{
+    font-style:normal;
+    color:#50566e;
+}
+
+.jenkins-footer{
+    display:grid;
+    grid-template-columns:2fr 1fr;
+    gap:14px;
+    margin-top:14px;
+}
+
+.jenkins-info{
+    padding:18px;
+    border:1px solid rgba(255,255,255,.06);
+    border-radius:16px;
+    background:rgba(14,16,29,.65);
+}
+
+.jenkins-info-kicker{
+    color:#646980;
+    font-size:9px;
+    letter-spacing:1.5px;
+    font-weight:800;
+}
+
+.jenkins-info strong{
+    display:block;
+    margin-top:8px;
+    font-size:20px;
+    color:#e9ebff;
+}
+
+.jenkins-info small{
+    display:block;
+    color:#646980;
+    font-size:10px;
+    margin-top:5px;
+}
+
+@keyframes jenkinsSpin{
+    to{transform:rotate(360deg)}
+}
+
+@keyframes jenkinsPulse{
+    50%{
+        opacity:.35;
+        transform:scale(.7);
+    }
+}
+
+@media(max-width:900px){
+
+    .jenkins-metrics{
+        grid-template-columns:repeat(2,1fr);
+    }
+
+    .jenkins-job{
+        grid-template-columns:1fr 1fr;
+    }
+
+    .jenkins-job-head{
+        display:none;
+    }
+
+    .jenkins-footer{
+        grid-template-columns:1fr;
+    }
+
+    .jenkins-hero{
+        flex-direction:column;
+        align-items:flex-start;
+    }
+
+    .jenkins-status{
+        width:100%;
+    }
+}
+
+@media(max-width:560px){
+
+    .jenkins-metrics{
+        grid-template-columns:1fr;
+    }
+
+    .jenkins-banner{
+        flex-direction:column;
+        align-items:flex-start;
+    }
+
+    .jenkins-last-check{
+        text-align:left;
+    }
+}
+</style>
+
+
+<div class="jenkins-shell">
+
+    <!-- HERO -->
+
+    <div class="jenkins-hero">
+
+        <div>
+
+            <div class="jenkins-eyebrow">
+                <span class="jenkins-live-dot"></span>
+                LIVE JENKINS OBSERVABILITY
+            </div>
+
+            <h1 class="jenkins-title">
+                Jenkins <span>Command Center</span>
+            </h1>
+
+            <p class="jenkins-subtitle">
+                Real-time CI/CD pipeline visibility powered by your FastAPI monitoring engine.
+            </p>
+
+        </div>
+
+        <div class="jenkins-status">
+
+            <small>JENKINS SERVER</small>
+
+            <strong id="jenkinsServerStatus">
+                CONNECTING
+            </strong>
+
+        </div>
+
+    </div>
+
+
+    <!-- STATUS -->
+
+    <div class="jenkins-banner">
+
+        <div class="jenkins-banner-left">
+
+            <span
+                class="jenkins-orb"
+                id="jenkinsStatusOrb">
+            </span>
+
+            <div>
+
+                <strong id="jenkinsOverall">
+                    CONNECTING
+                </strong>
+
+                <span id="jenkinsStatusText">
+                    Fetching Jenkins pipeline data...
+                </span>
+
+            </div>
+
+        </div>
+
+        <div class="jenkins-last-check">
+
+            <small>LAST CHECK</small>
+
+            <strong id="jenkinsCheckedAt">
+                --
+            </strong>
+
+        </div>
+
+    </div>
+
+
+    <!-- METRICS -->
+
+    <div class="jenkins-metrics">
+
+        <div class="jenkins-card">
+
+            <div class="jenkins-card-label">
+                TOTAL JOBS
+            </div>
+
+            <div
+                class="jenkins-card-value"
+                id="jenkinsJobCount">
+                --
+            </div>
+
+            <div class="jenkins-card-caption">
+                Jenkins jobs detected
+            </div>
+
+        </div>
+
+
+        <div class="jenkins-card success">
+
+            <div class="jenkins-card-label">
+                SUCCESSFUL
+            </div>
+
+            <div
+                class="jenkins-card-value"
+                id="jenkinsSuccessCount">
+                --
+            </div>
+
+            <div class="jenkins-card-caption">
+                Successful builds
+            </div>
+
+        </div>
+
+
+        <div class="jenkins-card failed">
+
+            <div class="jenkins-card-label">
+                FAILED
+            </div>
+
+            <div
+                class="jenkins-card-value"
+                id="jenkinsFailedCount">
+                --
+            </div>
+
+            <div class="jenkins-card-caption">
+                Failed builds
+            </div>
+
+        </div>
+
+
+        <div class="jenkins-card">
+
+            <div class="jenkins-card-label">
+                RUNNING
+            </div>
+
+            <div
+                class="jenkins-card-value"
+                id="jenkinsRunningCount">
+                --
+            </div>
+
+            <div class="jenkins-card-caption">
+                Active pipeline runs
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- JOBS -->
+
+    <div class="jenkins-section-heading">
+
+        <div>
+
+            <h2>
+                CI/CD Pipelines
+            </h2>
+
+            <p>
+                Live Jenkins jobs and build status.
+            </p>
+
+        </div>
+
+        <button
+            class="jenkins-refresh"
+            id="jenkinsRefreshBtn">
+
+            <span>↻</span>
+            Refresh
+
+        </button>
+
+    </div>
+
+
+    <div
+        class="jenkins-jobs"
+        id="jenkinsJobs">
+
+        <div class="jenkins-empty">
+
+            <strong>
+                Loading Jenkins jobs...
+            </strong>
+
+            <span>
+                Connecting to OpsMind backend
+            </span>
+
+        </div>
+
+    </div>
+
+
+    <!-- FOOTER -->
+
+    <div class="jenkins-footer">
+
+        <div class="jenkins-info">
+
+            <div class="jenkins-info-kicker">
+                CI/CD PIPELINE
+            </div>
+
+            <div class="jenkins-pipeline">
+
+                <span>GitHub</span>
+                <i>→</i>
+
+                <span>Jenkins</span>
+                <i>→</i>
+
+                <span>Test</span>
+                <i>→</i>
+
+                <span>Build</span>
+                <i>→</i>
+
+                <b>Deploy</b>
+
+            </div>
+
+        </div>
+
+
+        <div class="jenkins-info">
+
+            <div class="jenkins-info-kicker">
+                AUTO REFRESH
+            </div>
+
+            <strong>
+                30 seconds
+            </strong>
+
+            <small>
+                Dashboard continuously checks Jenkins API.
+            </small>
+
+        </div>
+
+    </div>
+
+</div>
+
+
+<script>
+
+/* =========================================================
+   OPSMIND — JENKINS LIVE MONITOR
+========================================================= */
+
+(function(){
+
+    "use strict";
+
+    const JENKINS_API =
+        "http://127.0.0.1:8000/api/jenkins";
+
+    let jenkinsTimer = null;
+
+
+    function el(id){
+
+        return document.getElementById(id);
+
+    }
+
+
+    function formatTime(value){
+
+        if(!value){
+
+            return "--";
+
+        }
+
+        const d = new Date(value);
+
+        if(Number.isNaN(d.getTime())){
+
+            return value;
+
+        }
+
+        return d.toLocaleTimeString(
+            [],
+            {
+                hour:"2-digit",
+                minute:"2-digit",
+                second:"2-digit"
+            }
+        );
+
+    }
+
+
+    function setStatus(
+        type,
+        title,
+        message
+    ){
+
+        const orb =
+            el("jenkinsStatusOrb");
+
+        const overall =
+            el("jenkinsOverall");
+
+        const text =
+            el("jenkinsStatusText");
+
+        const server =
+            el("jenkinsServerStatus");
+
+
+        if(!orb){
+
+            return;
+
+        }
+
+
+        orb.className =
+            "jenkins-orb " + type;
+
+
+        overall.textContent =
+            title;
+
+
+        text.textContent =
+            message;
+
+
+        server.textContent =
+            title;
+
+    }
+
+
+    function renderJobs(data){
+
+        const container =
+            el("jenkinsJobs");
+
+
+        if(!container){
+
+            return;
+
+        }
+
+
+        const jobs =
+            Array.isArray(data.jobs)
+                ? data.jobs
+                : [];
+
+
+        el("jenkinsJobCount").textContent =
+            data.job_count ?? jobs.length;
+
+
+        el("jenkinsRunningCount").textContent =
+            data.running_jobs ?? 0;
+
+
+        el("jenkinsSuccessCount").textContent =
+            data.successful_jobs ?? 0;
+
+
+        el("jenkinsFailedCount").textContent =
+            data.failed_jobs ?? 0;
+
+
+        el("jenkinsCheckedAt").textContent =
+            formatTime(data.checked_at);
+
+
+        if(!jobs.length){
+
+            container.innerHTML = `
+
+                <div class="jenkins-empty">
+
+                    <strong>
+                        No Jenkins jobs detected
+                    </strong>
+
+                    <span>
+                        Jenkins is connected but returned no jobs.
+                    </span>
+
+                </div>
+
+            `;
+
+            return;
+
+        }
+
+
+        container.innerHTML = `
+
+            <div class="jenkins-job jenkins-job-head">
+
+                <span>JOB</span>
+                <span>URL</span>
+                <span>STATUS</span>
+                <span>ACTION</span>
+
+            </div>
+
+            ${jobs.map(job => {
+
+                const status =
+                    String(
+                        job.status || "unknown"
+                    ).toLowerCase();
+
+
+                const statusClass =
+                    status === "blue"
+                        ? "jenkins-blue"
+                        : status === "red"
+                            ? "jenkins-red"
+                            : "";
+
+
+                const statusText =
+                    status === "blue"
+                        ? "SUCCESS"
+                        : status === "red"
+                            ? "FAILED"
+                            : status.toUpperCase();
+
+
+                return `
+
+                    <div class="jenkins-job">
+
+                        <div class="jenkins-job-name">
+                            ${job.name || "Unknown Job"}
+                        </div>
+
+                        <div class="jenkins-job-url">
+                            ${job.url || "--"}
+                        </div>
+
+                        <div class="jenkins-job-status ${statusClass}">
+                            ${statusText}
+                        </div>
+
+                        <div>
+
+                            ${
+                                job.url
+                                ?
+                                `
+                                <a
+                                    class="jenkins-job-btn"
+                                    href="${job.url}"
+                                    target="_blank"
+                                    rel="noopener">
+                                    Open
+                                </a>
+                                `
+                                :
+                                ""
+                            }
+
+                        </div>
+
+                    </div>
+
+                `;
+
+            }).join("")}
+
+        `;
+
+    }
+
+
+    async function loadJenkins(){
+
+        const btn =
+            el("jenkinsRefreshBtn");
+
+
+        if(btn){
+
+            btn.classList.add("loading");
+
+        }
+
+
+        try{
+
+            setStatus(
+                "",
+                "CONNECTING",
+                "Fetching Jenkins pipeline data..."
+            );
+
+
+            const response =
+                await fetch(
+                    JENKINS_API,
+                    {
+                        cache:"no-store"
+                    }
+                );
+
+
+            if(!response.ok){
+
+                throw new Error(
+                    "API returned HTTP " +
+                    response.status
+                );
+
+            }
+
+
+            const data =
+                await response.json();
+
+
+            renderJobs(data);
+
+
+            if(
+                data.status === "success" &&
+                data.jenkins === "online"
+            ){
+
+                setStatus(
+                    "online",
+                    "ONLINE",
+                    "Jenkins monitoring engine is operating normally."
+                );
+
+            }else{
+
+                setStatus(
+                    "offline",
+                    "OFFLINE",
+                    "Jenkins backend returned an error."
+                );
+
+            }
+
+
+        }catch(error){
+
+            console.error(
+                "OPSMIND Jenkins API error:",
+                error
+            );
+
+
+            setStatus(
+                "offline",
+                "OFFLINE",
+                "Cannot reach FastAPI at 127.0.0.1:8000."
+            );
+
+
+            el("jenkinsJobs").innerHTML = `
+
+                <div class="jenkins-empty">
+
+                    <strong>
+                        Jenkins backend unavailable
+                    </strong>
+
+                    <span>
+                        Start FastAPI with:
+                        python -m uvicorn app:app --reload
+                    </span>
+
+                </div>
+
+            `;
+
+
+            el("jenkinsCheckedAt").textContent =
+                "--";
+
+        }
+
+
+        finally{
+
+            if(btn){
+
+                btn.classList.remove("loading");
+
+            }
+
+        }
+
+    }
+
+
+    function initJenkins(){
+
+        loadJenkins();
+
+
+        const btn =
+            el("jenkinsRefreshBtn");
+
+
+        if(btn){
+
+            btn.addEventListener(
+                "click",
+                loadJenkins
+            );
+
+        }
+
+
+        if(jenkinsTimer){
+
+            clearInterval(jenkinsTimer);
+
+        }
+
+
+        jenkinsTimer =
+            setInterval(
+                loadJenkins,
+                30000
+            );
+
+    }
+
+
+    if(
+        document.readyState === "loading"
+    ){
+
+        document.addEventListener(
+            "DOMContentLoaded",
+            initJenkins
+        );
+
+    }else{
+
+        initJenkins();
+
+    }
+
+})();
+
+</script>
+
+</section>
+                <section class="page" id="page-services" aria-label="Services">
+                    <div class="section-header">
+                        <h2 class="section-title">Service Catalog</h2>
+                        <div class="section-actions">
+                            <input type="search" class="table-search" id="svcSearch" placeholder="Filter services...">
+                        </div>
+                    </div>
+                    <div class="table-container glass-panel">
+                        <table class="service-table" id="svcTable">
+                            <thead>
+                                <tr>
+                                    <th>Service</th><th>Type</th><th>Environment</th><th>Status</th>
+                                    <th>Health</th><th>Endpoint / Version</th><th>Last Checked</th><th>Risk</th>
+                                </tr>
+                            </thead>
+                            <tbody id="svcTableBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="page" id="page-incidents" aria-label="Incidents">
+                    <div class="section-header">
+                        <h2 class="section-title">Incident Management</h2>
+                    </div>
+                    <div class="section-header"><h3 style="font-size:14px;opacity:.7;margin:0">Active</h3></div>
+                    <div class="incident-list glass-panel" id="incActiveList"></div>
+                    <div class="section-header" style="margin-top:20px"><h3 style="font-size:14px;opacity:.7;margin:0">Recently Resolved</h3></div>
+                    <div class="incident-list glass-panel" id="incResolvedList"></div>
+                </section>
+
+                <section class="page" id="page-automation" aria-label="Automation">
+                    <div class="section-header">
+                        <h2 class="section-title">Automation Center</h2>
+                    </div>
+                    <div class="hero-stats-grid" id="autoStatsGrid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:20px"></div>
+                    <div class="section-header"><h3 style="font-size:14px;opacity:.7;margin:0">Pending Suggestions (require approval)</h3></div>
+                    <div class="incident-list glass-panel" id="autoSuggestions"></div>
+                </section>
+
+                <section class="page" id="page-intelligence" aria-label="Intelligence">
+                    <div class="section-header">
+                        <h2 class="section-title">Ops Intelligence</h2>
+                        <div class="section-actions"><span class="ai-badge">RULE-BASED — NO AI CONNECTED</span></div>
+                    </div>
+                    <div class="intel-grid" id="intelGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px"></div>
+                    <div class="section-header"><h3 style="font-size:14px;opacity:.7;margin:0">Detected Anomalies</h3></div>
+                    <div class="incident-list glass-panel" id="intelAnomalies"></div>
+                </section>
+
+                <section class="page" id="page-logs" aria-label="Logs">
+                    <div class="section-header">
+                        <h2 class="section-title">Centralized Logs</h2>
+                        <div class="section-actions">
+                            <input type="search" class="table-search" id="logsSearch" placeholder="Search logs...">
+                            <select class="metric-range" id="logsLevelFilter">
+                                <option value="all">All Levels</option>
+                                <option value="INFO">Info</option>
+                                <option value="WARNING">Warning</option>
+                                <option value="ERROR">Error</option>
+                                <option value="CRITICAL">Critical</option>
+                                <option value="DEBUG">Debug</option>
+                            </select>
+                            <button class="aws-refresh-btn" id="logsPauseBtn"><span>⏸</span> Pause</button>
+                            <button class="aws-refresh-btn" id="logsClearBtn"><span>🗑</span> Clear</button>
+                        </div>
+                    </div>
+                    <div class="table-container glass-panel">
+                        <div id="logsStreamBox" style="max-height:520px;overflow-y:auto;font-family:monospace;font-size:13px;padding:12px"></div>
+                    </div>
+                </section>
+
+                <section class="page" id="page-settings" aria-label="Settings">
+                    <div class="section-header">
+                        <h2 class="section-title">Settings</h2>
+                    </div>
+                    <div class="intel-grid" id="settingsGrid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:16px"></div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Global Status Bar -->
+    <footer class="global-status-bar" id="globalStatusBar" role="contentinfo" aria-label="Global system status">
+        <div class="status-items" id="statusBarItems"></div>
+        <span class="status-message" id="statusMessage">All systems operational</span>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="js/mock-data.js"></script>
+    <script src="js/animation.js"></script>
+    <script src="js/dashboard.js"></script>
+    <script src="js/modules.js"></script>
+    <script src="js/app.js"></script>
+
+<script>
+/* OPSMIND — AWS live page */
+(function(){
+    "use strict";
+
+    const AWS_API = "http://127.0.0.1:8000/api/aws";
+    let awsTimer = null;
+
+    function el(id){ return document.getElementById(id); }
+
+    function formatTime(value){
+        if(!value) return "--";
+        const d = new Date(value);
+        if(Number.isNaN(d.getTime())) return value;
+        return d.toLocaleTimeString([], {hour:"2-digit", minute:"2-digit", second:"2-digit"});
+    }
+
+    function setHealth(type, title, message){
+        const orb = el("awsStatusOrb");
+        const titleEl = el("awsOverallHealth");
+        const textEl = el("awsStatusText");
+        if(!orb || !titleEl || !textEl) return;
+
+        orb.className = "aws-status-orb " + type;
+        titleEl.textContent = title;
+        textEl.textContent = message;
+    }
+
+    function renderInstances(data){
+        const fleet = el("awsFleet");
+        if(!fleet) return;
+
+        const instances = Array.isArray(data.instances) ? data.instances : [];
+        const running = instances.filter(i => String(i.state || "").toLowerCase() === "running").length;
+        const healthy = instances.filter(i => {
+            const h = String(i.health || i.status || "").toLowerCase();
+            return h === "healthy" || h === "ok" || h === "passed";
+        }).length;
+
+        el("awsInstanceCount").textContent = data.instance_count ?? instances.length;
+        el("awsRunningCount").textContent = running;
+        el("awsHealthyCount").textContent = instances.length ? healthy : 0;
+        el("awsRegion").textContent = data.region || "ap-south-1";
+        el("awsCheckedAt").textContent = formatTime(data.checked_at);
+
+        if(!instances.length){
+            fleet.innerHTML = `
+                <div class="aws-empty-state">
+                    <strong>No EC2 instances detected</strong>
+                    <span>OpsMind is connected, but this AWS region currently has no instances.</span>
+                </div>`;
+            return;
+        }
+
+        fleet.innerHTML = `
+            <div class="aws-instance aws-instance-head">
+                <span>INSTANCE</span><span>TYPE</span><span>STATE</span><span>CPU</span><span>HEALTH</span><span>ZONE</span>
+            </div>
+            ${instances.map(i => {
+                const state = String(i.state || "unknown").toLowerCase();
+                const stateClass = state === "running" ? "" : "stopped";
+                const health = i.health || i.status || "unknown";
+                const cpu = i.cpu ?? i.cpu_percent ?? "--";
+                const zone = i.availability_zone || i.zone || "--";
+                return `
+                    <div class="aws-instance">
+                        <div class="aws-instance-id">${i.id || i.instance_id || "unknown"}</div>
+                        <div class="aws-instance-type">${i.type || i.instance_type || "--"}</div>
+                        <div class="aws-instance-state">
+                            <span class="aws-state ${stateClass}">
+                                <span class="aws-state-dot"></span>${state}
+                            </span>
+                        </div>
+                        <div class="aws-instance-cpu">${cpu === "--" ? "--" : cpu + "%"}</div>
+                        <div class="aws-instance-health">
+                            <span class="aws-health-chip ${String(health).toLowerCase().includes("fail") ? "bad" : ""}">${health}</span>
+                        </div>
+                        <div class="aws-instance-type">${zone}</div>
+                    </div>`;
+            }).join("")}`;
+    }
+
+    async function loadAWS(){
+        const btn = el("awsRefreshBtn");
+        if(btn) btn.classList.add("loading");
+
+        try{
+            setHealth("", "CONNECTING", "Fetching live AWS infrastructure data...");
+            const response = await fetch(AWS_API, {cache:"no-store"});
+            if(!response.ok) throw new Error("API returned HTTP " + response.status);
+
+            const data = await response.json();
+            renderInstances(data);
+
+            const overall = String(data.overall_health || "").toLowerCase();
+            if(overall === "healthy" || overall === "ok"){
+                setHealth("healthy", "HEALTHY", "AWS monitoring engine is operating normally.");
+            }else if(overall === "no-instances"){
+                setHealth("warning", "NO INSTANCES", "Backend is connected; no EC2 instances were detected.");
+            }else{
+                setHealth("warning", String(data.overall_health || "MONITORING").toUpperCase(), "AWS infrastructure data received.");
+            }
+        }catch(error){
+            console.error("OPSMIND AWS API error:", error);
+            setHealth("error", "OFFLINE", "Cannot reach FastAPI at 127.0.0.1:8000.");
+            el("awsFleet").innerHTML = `
+                <div class="aws-empty-state">
+                    <strong>Monitoring backend unavailable</strong>
+                    <span>Start FastAPI with: python -m uvicorn app:app --reload</span>
+                </div>`;
+            el("awsCheckedAt").textContent = "--";
+        }finally{
+            if(btn) btn.classList.remove("loading");
+        }
+    }
+
+    function initAWS(){
+        loadAWS();
+
+        const btn = el("awsRefreshBtn");
+        if(btn) btn.addEventListener("click", loadAWS);
+
+        if(awsTimer) clearInterval(awsTimer);
+        awsTimer = setInterval(loadAWS, 30000);
+    }
+
+    if(document.readyState === "loading"){
+        document.addEventListener("DOMContentLoaded", initAWS);
+    }else{
+        initAWS();
+    }
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,11 @@
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+node_modules/
+.vscode/
+.idea/
+backend-backup-*/
+frontend-backup-*/

@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>OpsMind — Admin Login</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="css/style.css">
+<style>
+    body {
+        background: var(--bg-primary);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    .login-shell {
+        width: 100%;
+        max-width: 400px;
+        padding: 40px;
+        background: var(--bg-glass);
+        border: 1px solid var(--border-glass);
+        border-radius: 16px;
+        box-shadow: var(--shadow-lg);
+        backdrop-filter: blur(20px);
+    }
+
+    .login-logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 8px;
+    }
+
+    .login-logo-icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        background: var(--grad-cyan-purple);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        color: #0a0a0f;
+        font-size: 16px;
+    }
+
+    .login-logo-text {
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--white);
+        letter-spacing: 0.5px;
+    }
+
+    .login-tagline {
+        font-size: 11px;
+        color: var(--text-muted);
+        letter-spacing: 1.5px;
+        margin-bottom: 32px;
+        text-transform: uppercase;
+    }
+
+    .login-field {
+        margin-bottom: 18px;
+    }
+
+    .login-field label {
+        display: block;
+        font-size: 12px;
+        color: var(--white-dim);
+        margin-bottom: 6px;
+        font-weight: 600;
+    }
+
+    .login-field input {
+        width: 100%;
+        padding: 12px 14px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-glass);
+        border-radius: 8px;
+        color: var(--white);
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.2s;
+        box-sizing: border-box;
+    }
+
+    .login-field input:focus {
+        border-color: var(--cyan);
+    }
+
+    .login-btn {
+        width: 100%;
+        padding: 13px;
+        background: var(--grad-cyan-purple);
+        border: none;
+        border-radius: 8px;
+        color: #0a0a0f;
+        font-weight: 700;
+        font-size: 14px;
+        cursor: pointer;
+        margin-top: 8px;
+        transition: opacity 0.2s;
+    }
+
+    .login-btn:hover { opacity: 0.9; }
+    .login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .login-error {
+        background: var(--red-dim);
+        color: var(--red);
+        border: 1px solid rgba(255, 61, 90, 0.3);
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-size: 13px;
+        margin-bottom: 18px;
+        display: none;
+    }
+
+    .login-error.show { display: block; }
+
+    .login-hint {
+        margin-top: 24px;
+        padding-top: 18px;
+        border-top: 1px solid var(--border-glass);
+        font-size: 12px;
+        color: var(--text-muted);
+        line-height: 1.6;
+    }
+
+    .login-hint code {
+        background: var(--bg-tertiary);
+        padding: 1px 6px;
+        border-radius: 4px;
+        color: var(--cyan);
+    }
+</style>
+</head>
+<body>
+
+<div class="login-shell">
+    <div class="login-logo">
+        <div class="login-logo-icon">O</div>
+        <div class="login-logo-text">OPSMIND</div>
+    </div>
+    <div class="login-tagline">Autonomous DevOps Command Center</div>
+
+    <div class="login-error" id="loginError"></div>
+
+    <form id="loginForm">
+        <div class="login-field">
+            <label for="username">Username</label>
+            <input type="text" id="username" autocomplete="username" required autofocus>
+        </div>
+        <div class="login-field">
+            <label for="password">Password</label>
+            <input type="password" id="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="login-btn" id="loginBtn">Sign In</button>
+    </form>
+
+    <div class="login-hint">
+        Default credentials: <code>admin</code> / <code>opsmind123</code><br>
+        Change these via the <code>OPSMIND_ADMIN_USERNAME</code> and
+        <code>OPSMIND_ADMIN_PASSWORD</code> environment variables on the backend.
+    </div>
+</div>
+
+<script>
+    const API_BASE = 'http://127.0.0.1:8000';
+    const form = document.getElementById('loginForm');
+    const errorBox = document.getElementById('loginError');
+    const btn = document.getElementById('loginBtn');
+
+    // Already logged in with a valid session? Skip straight to dashboard.
+    (async () => {
+        const token = sessionStorage.getItem('opsmind_token');
+        if (!token) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/auth/verify`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) window.location.href = 'index.html';
+        } catch (e) { /* backend not reachable yet, stay on login */ }
+    })();
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        errorBox.classList.remove('show');
+        btn.disabled = true;
+        btn.textContent = 'Signing in...';
+
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+
+        try {
+            const res = await fetch(`${API_BASE}/api/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.detail || 'Invalid username or password');
+            }
+
+            const data = await res.json();
+            sessionStorage.setItem('opsmind_token', data.token);
+            sessionStorage.setItem('opsmind_username', username);
+            window.location.href = 'index.html';
+
+        } catch (err) {
+            errorBox.textContent = err.message.includes('fetch')
+                ? 'Cannot reach OpsMind backend. Make sure uvicorn is running on port 8000.'
+                : err.message;
+            errorBox.classList.add('show');
+            btn.disabled = false;
+            btn.textContent = 'Sign In';
+        }
+    });
+</script>
+
+</body>
+</html>
