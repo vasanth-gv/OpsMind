@@ -9,3 +9,5 @@ node_modules/
 .idea/
 backend-backup-*/
 frontend-backup-*/
+
+frontend/js/*backup.js
